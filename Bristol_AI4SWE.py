@@ -24,8 +24,8 @@ print(is_gpu)
 # # # ################################### # # #
 # create a torch constant
 # TODO double check these torch constants
-dt = torch.tensor([0.00001], device=device) # timestep (s)
-dx = torch.tensor([0.002], device=device) # spatial discretisation (m) (here it is 2cm)
+dt = torch.tensor([0.0001], device=device) # timestep (s)
+dx = torch.tensor([0.02], device=device) # spatial discretisation (m) (here it is 20cm)
 nx = torch.tensor([294], device=device) # number of points in x direction
 ny = torch.tensor([302], device=device) # number of points in y direction
 CFL = np.sqrt(9.81*4)*dt/dx # for gravity waves with wavenumber 0.25
