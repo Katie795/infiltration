@@ -17,15 +17,15 @@ from AIModule import AI4SWE
 # Check if GPU is available 
 is_gpu = torch.cuda.is_available()
 device = torch.device("cuda" if is_gpu else "cpu")
-print(is_gpu)
+print(f"Running on device {device}")
 
 # # # ################################### # # #
 # # # ######   Numerical parameters ###### # # #
 # # # ################################### # # #
 # create a torch constant
 # TODO double check these torch constants
-dt = torch.tensor([0.0001], device=device) # timestep (s)
-dx = torch.tensor([0.02], device=device) # spatial discretisation (m) (here it is 20cm)
+dt = torch.tensor([0.1], device=device) # timestep (s)
+dx = torch.tensor([0.2], device=device) # spatial discretisation (m) (here it is 20cm)
 nx = torch.tensor([294], device=device) # number of points in x direction
 ny = torch.tensor([302], device=device) # number of points in y direction
 CFL = np.sqrt(9.81*4)*dt/dx # for gravity waves with wavenumber 0.25
@@ -63,8 +63,8 @@ wm = torch.reshape(wm,(1,1,3,3))
 
 #######################################################
 ################# Numerical parameters ################
-ntime = 100                 # Time steps
-n_out = 10                  # How often to save the results 
+ntime = 1000                # Time steps
+n_out = 100                 # How often to save the results 
 nrestart = 0                # Last time step for restart
 ctime_old = 0               # Last ctime for restart
 mgsolver = True             # Multigrid solver for non-hydrostatic pressure 
@@ -143,11 +143,8 @@ with open('data/malago_height.txt', 'r') as file:
     data = file.read().split()
 # Convert the string values to floats
 mesh = np.array([float(value) for value in data[12:]])
-print(f'Mesh is {mesh}')
 # Now, float_values contains a list of floating-point numbers from the .raw file
 mesh = mesh.reshape(int(data[3]),int(data[1]))
-print(f'Mesh is {mesh}')
-print(mesh.shape, values_H.shape)
 values_H[0,0,:,:] = torch.tensor(mesh, device=device)
 
 
@@ -158,13 +155,14 @@ def get_source2(time):
     # here time is in seconds
     if time < 50:
         # 10mm / hour ( heavy rain )
-        # 10 / (60 * 60) = 0.00278 mm / second
-        source_h[0,0, :, :] = 0.00278
+        # 10 / (60 * 60) = 0.00278 m / second
+        source_h[0,0, :, :] = 0.00278 * dt # source times timestep
     elif time >= 50:
         source_h[0,0, :, :] = 0
 
 # Transfer array into tensor
 values_h = values_H
+values_h_initital = values_H
 values_H = - values_H
 
 # h is the road!!
@@ -180,15 +178,15 @@ with torch.no_grad():
 
         for t in range(2):
             [values_u, values_v, values_h, values_hh, dif_values_h, sigma_q] = model(values_u, values_uu, values_v, values_vv, values_H, values_h, 
-                    values_hp, b_u, b_uu, b_v, b_vv, dt, rho, k1, k2, k3, eta1_p, source_h, dif_values_h, dif_values_hh, values_hh, values_hhp)
-# output          
+                    values_hp, b_u, b_uu, b_v, b_vv, dt, rho, k1, k2, k3, eta1_p, source_h, dif_values_h, dif_values_hh, values_hh, values_hhp) # output          
         real_time = real_time + dt
         istep +=1
 
         if np.max(np.abs(values_hh.cpu().detach().numpy())) > 10.0:
             print('Not converged !!!!!!')
             break
-        print('Time step:', itime, 'height correction:', np.max(values_hh.cpu().detach().numpy())) 
+        print('Time step:', itime, 'height correction:', np.max(values_hh.cpu().detach().numpy()))
+        print(f"Maximum depth is {np.max((values_h -values_h_initital).cpu().detach().numpy())}m") 
 
         # values_H does not change!!
 

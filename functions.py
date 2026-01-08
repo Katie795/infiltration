@@ -60,8 +60,10 @@ def concatonate_csv_files(filename, fileoutputname):
     print(df)
     df.to_csv(fileoutputname, header=True, index=False)  
 
-concatonate_csv_files(f"results/h_road_10.csv", f"results/h_road.csv")
-concatonate_csv_files(f"results/h_garden_10.csv", f"results/h_garden.csv")
+
+for i in range(1,6):
+    concatonate_csv_files(f"results/h_road_{100*i}.csv", f"results/road_{i}.csv")
+    concatonate_csv_files(f"results/h_garden_{100*i}.csv", f"results/garden_{i}.csv")
 
 #for i in range(1,10):
 #    concatonate_csv_files(f"results/h_{10*i}.csv", f"results/h_full_{10*i}.csv")
