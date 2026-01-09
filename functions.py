@@ -61,7 +61,7 @@ def concatonate_csv_files(filename, fileoutputname):
     df.to_csv(fileoutputname, header=True, index=False)  
 
 
-for i in range(1,6):
+for i in range(1,11):
     concatonate_csv_files(f"results/h_road_{100*i}.csv", f"results/road_{i}.csv")
     concatonate_csv_files(f"results/h_garden_{100*i}.csv", f"results/garden_{i}.csv")
 

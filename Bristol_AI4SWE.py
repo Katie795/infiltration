@@ -24,7 +24,7 @@ print(f"Running on device {device}")
 # # # ################################### # # #
 # create a torch constant
 # TODO double check these torch constants
-dt = torch.tensor([0.1], device=device) # timestep (s)
+dt = torch.tensor([0.05], device=device) # timestep (s)
 dx = torch.tensor([0.2], device=device) # spatial discretisation (m) (here it is 20cm)
 nx = torch.tensor([294], device=device) # number of points in x direction
 ny = torch.tensor([302], device=device) # number of points in y direction
@@ -153,11 +153,11 @@ source_h = torch.zeros(input_shape, device=device)
 
 def get_source2(time):
     # here time is in seconds
-    if time < 50:
+    if time < 100:
         # 10mm / hour ( heavy rain )
         # 10 / (60 * 60) = 0.00278 m / second
         source_h[0,0, :, :] = 0.00278 * dt # source times timestep
-    elif time >= 50:
+    elif time >= 100:
         source_h[0,0, :, :] = 0
 
 # Transfer array into tensor
@@ -185,7 +185,7 @@ with torch.no_grad():
         if np.max(np.abs(values_hh.cpu().detach().numpy())) > 10.0:
             print('Not converged !!!!!!')
             break
-        print('Time step:', itime, 'height correction:', np.max(values_hh.cpu().detach().numpy()))
+        print(f'Time step: {itime}, height correction: {np.max(values_hh.cpu().detach().numpy())}, time in seconds = {real_time.item():.0f}')
         print(f"Maximum depth is {np.max((values_h -values_h_initital).cpu().detach().numpy())}m") 
 
         # values_H does not change!!
@@ -195,8 +195,6 @@ with torch.no_grad():
             np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
             #np.save("u"+str(itime), arr=values_v.cpu().detach().numpy()[0,0,:,:])
             #np.save("v"+str(itime), arr=values_u.cpu().detach().numpy()[0,0,:,:])
-
-        print(f'Time step: {itime}, {istep}, time in seconds = {real_time.item():.0f}')
             # Open the CSV file for appending the data
             
     end = time.time()

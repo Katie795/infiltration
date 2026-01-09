@@ -61,11 +61,12 @@ class AI4SWE(nn.Module):
         nny = values_hp.shape[2]
         nnx = values_hp.shape[3]
 
+        # homogeneous neumann boundary conditions
         values_hp[0,0,1:nny-1,1:nnx-1] = values_h[0,0,:,:]
-        values_hp[0,0,:,nx+1] = values_hp[0,0,:,nx]*0 # zero bcs on all sides for   
-        values_hp[0,0,:,0] = values_hp[0,0,:,1]*0 
-        values_hp[0,0,ny+1,:] = values_hp[0,0,ny,:]*0  
-        values_hp[0,0,0,:] = values_hp[0,0,1,:]*0 
+        values_hp[0,0,:,nx+1] = values_hp[0,0,:,nx]#0 # zero bcs on all sides for   
+        values_hp[0,0,:,0] = values_hp[0,0,:,1]#0 
+        values_hp[0,0,ny+1,:] = values_hp[0,0,ny,:]#0  
+        values_hp[0,0,0,:] = values_hp[0,0,1,:]#0 
         return values_hp   
 
     def PG_vector(self, values_uu, values_vv, values_u, values_v, k3):
