@@ -12,6 +12,7 @@
 import numpy as np 
 import time 
 import torch
+import functions
 from AIModule import AI4SWE
 
 # Check if GPU is available 
@@ -200,13 +201,14 @@ with torch.no_grad():
             print('Not converged !!!!!!')
             break
         print(f'Time step: {itime}, height correction: {np.max(values_hh.cpu().detach().numpy())}, time in seconds = {real_time.item():.0f}')
-        print(f"Maximum depth is {np.max((values_h -values_h_initital).cpu().detach().numpy())}m") 
+        print(f"Maximum depth is {np.max((values_h - values_h_initital).cpu().detach().numpy())}m") 
 
         # values_H does not change!!
 
         if save_fig == True and itime % n_out == 0:
-            #np.savetxt(f"results/h_garden_{itime}.csv", values_H.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            np.savetxt(f"results/eta_road_{itime}.csv", (values_h - values_h_initital).cpu().detach().numpy()[0,0,:,:], delimiter=",")
             np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            functions.post_processing(f"results/eta_road_{itime}.csv", "eta", itime)
             #np.save("u"+str(itime), arr=values_v.cpu().detach().numpy()[0,0,:,:])
             #np.save("v"+str(itime), arr=values_u.cpu().detach().numpy()[0,0,:,:])
             # Open the CSV file for appending the data
