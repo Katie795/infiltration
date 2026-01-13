@@ -63,8 +63,8 @@ wm = torch.reshape(wm,(1,1,3,3))
 
 #######################################################
 ################# Numerical parameters ################
-ntime = 1000                # Time steps
-n_out = 100                 # How often to save the results 
+ntime = 100                # Time steps
+n_out = 10                 # How often to save the results 
 nrestart = 0                # Last time step for restart
 ctime_old = 0               # Last ctime for restart
 mgsolver = True             # Multigrid solver for non-hydrostatic pressure 
@@ -151,7 +151,7 @@ values_H[0,0,:,:] = torch.tensor(mesh, device=device)
 # defining the source term
 source_h = torch.zeros(input_shape, device=device)
 
-def get_source2(time):
+def get_source(time):
     # here time is in seconds
     if time < 100:
         # 10mm / hour ( heavy rain )
@@ -160,10 +160,23 @@ def get_source2(time):
     elif time >= 100:
         source_h[0,0, :, :] = 0
 
+def apply_infiltration(values_h):
+    q = 0.00001 # infiltration rate
+    #with open('data/rain_garden_indices.csv', 'r') as file:
+    # Read the entire content of the file and split it into individual values
+    rain_garden_indices = np.genfromtxt('data/rain_garden_indices.csv', delimiter=',')[1:, :]
+
+    #for i in range(len(rain_garden_indices)):
+    #    values_h[]
+
+    print(rain_garden_indices)
+        
+apply_infiltration(values_h)
+
 # Transfer array into tensor
 values_h = values_H
 values_h_initital = values_H
-values_H = - values_H
+values_H = - values_H ## this is used for info about the bathymetry of the surface! Values_H is fixed!
 
 # h is the road!!
 # H is everything but the road!!!
@@ -174,11 +187,12 @@ with torch.no_grad():
 
     for itime in range(1, ntime+1):
 
-        get_source2(real_time)
+        get_source(real_time)
 
         for t in range(2):
             [values_u, values_v, values_h, values_hh, dif_values_h, sigma_q] = model(values_u, values_uu, values_v, values_vv, values_H, values_h, 
                     values_hp, b_u, b_uu, b_v, b_vv, dt, rho, k1, k2, k3, eta1_p, source_h, dif_values_h, dif_values_hh, values_hh, values_hhp) # output          
+        
         real_time = real_time + dt
         istep +=1
 
@@ -191,7 +205,7 @@ with torch.no_grad():
         # values_H does not change!!
 
         if save_fig == True and itime % n_out == 0:
-            np.savetxt(f"results/h_garden_{itime}.csv", values_H.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            #np.savetxt(f"results/h_garden_{itime}.csv", values_H.cpu().detach().numpy()[0,0,:,:], delimiter=",")
             np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
             #np.save("u"+str(itime), arr=values_v.cpu().detach().numpy()[0,0,:,:])
             #np.save("v"+str(itime), arr=values_u.cpu().detach().numpy()[0,0,:,:])
