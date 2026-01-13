@@ -19,7 +19,7 @@ def generate_coords(filename):
             y_coords[j][i] = dx * ny - dx * (j + 1)
 
     np.savetxt("data/x_coords.csv", x_coords, delimiter=",")
-    np.savetxt("data/y_coords.csv", x_coords, delimiter=",")
+    np.savetxt("data/y_coords.csv", y_coords, delimiter=",")
     return x_coords, y_coords
 
 def create_paraview_table(x_file, y_file, z_file, output_file):
@@ -141,6 +141,9 @@ def find_indices_rain_garden(input_file, output_file):
 #find_indices_rain_garden(f"data/rain_garden.csv", "data/rain_garden_indices.csv")
 #find_rain_garden(f"results/.csv", "results/rain_garden.csv")
 #add_rain_garden_to_domain("data/rain_garden.csv", "results/road_10.csv")
+
+#create_paraview_table("data/x_coords.csv", "data/y_coords.csv", "results/h_road_10.csv", "results/road.csv")
+
 
 def post_processing(file, name, i):
     """Function to post-process the csv files into a paraview readable format"""

@@ -64,8 +64,8 @@ wm = torch.reshape(wm,(1,1,3,3))
 
 #######################################################
 ################# Numerical parameters ################
-ntime = 100                # Time steps
-n_out = 10                 # How often to save the results 
+ntime = 1000                # Time steps
+n_out = 10                  # How often to save the results 
 nrestart = 0                # Last time step for restart
 ctime_old = 0               # Last ctime for restart
 mgsolver = True             # Multigrid solver for non-hydrostatic pressure 
@@ -208,7 +208,7 @@ with torch.no_grad():
         if save_fig == True and itime % n_out == 0:
             np.savetxt(f"results/eta_road_{itime}.csv", (values_h - values_h_initital).cpu().detach().numpy()[0,0,:,:], delimiter=",")
             np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
-            functions.post_processing(f"results/eta_road_{itime}.csv", "eta", itime)
+            #functions.post_processing(f"results/eta_road_{itime}.csv", "eta", itime)
             #np.save("u"+str(itime), arr=values_v.cpu().detach().numpy()[0,0,:,:])
             #np.save("v"+str(itime), arr=values_u.cpu().detach().numpy()[0,0,:,:])
             # Open the CSV file for appending the data
