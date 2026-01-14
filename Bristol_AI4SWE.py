@@ -64,7 +64,7 @@ wm = torch.reshape(wm,(1,1,3,3))
 
 #######################################################
 ################# Numerical parameters ################
-ntime = 1000                # Time steps
+ntime = 10                # Time steps
 n_out = 10                  # How often to save the results 
 nrestart = 0                # Last time step for restart
 ctime_old = 0               # Last ctime for restart
@@ -139,15 +139,14 @@ print('Diagonal component:', diag)
 # Open the .raw file for reading
 values_h = torch.zeros(input_shape, device=device)
 values_H = torch.zeros(input_shape, device=device)
-with open('data/malago_height.txt', 'r') as file:
+with open('data/malago_height.csv', 'r') as file:
     # Read the entire content of the file and split it into individual values
-    data = file.read().split()
+    mesh = np.genfromtxt(file, delimiter=',')
 # Convert the string values to floats
-mesh = np.array([float(value) for value in data[12:]])
+#mesh = np.array([float(value) for value in data])
 # Now, float_values contains a list of floating-point numbers from the .raw file
-mesh = mesh.reshape(int(data[3]),int(data[1]))
+mesh = mesh.reshape(int(ny),int(nx))
 values_H[0,0,:,:] = torch.tensor(mesh, device=device)
-
 
 # defining the source term
 source_h = torch.zeros(input_shape, device=device)

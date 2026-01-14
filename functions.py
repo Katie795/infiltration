@@ -18,8 +18,8 @@ def generate_coords(filename):
             x_coords[j][i] = dx * i
             y_coords[j][i] = dx * ny - dx * (j + 1)
 
-    np.savetxt("data/x_coords.csv", x_coords, delimiter=",")
-    np.savetxt("data/y_coords.csv", y_coords, delimiter=",")
+    np.savetxt("data_generated/x_coords.csv", x_coords, delimiter=",")
+    np.savetxt("data_generated/y_coords.csv", y_coords, delimiter=",")
     return x_coords, y_coords
 
 def create_paraview_table(x_file, y_file, z_file, output_file):
@@ -96,7 +96,7 @@ def find_rain_garden(x_file, y_file, z_file, output_file):
         if all(bounding_box) and my_data[i] <= -9000:
             x_new.append(x[i])
             y_new.append(y[i])
-            my_data_new[i] = -2
+            garden_height.append(-2)
 
         i += 1
     d = {'x_coords': x_new, 'y_coords': y_new, 'height': garden_height}
@@ -116,7 +116,23 @@ def add_rain_garden_to_domain(garden_file, road_file):
     df_road = pd.read_csv(road_file)
 
     full_df = pd.concat([df_garden, df_road], axis=0)
-    full_df.to_csv("data/full_domain.csv", header=True, index=False)
+    full_df.to_csv("data_generated/full_domain.csv", header=True, index=False)
+
+def add_rain_garden_to_domain2(road_file, rain_indices):
+    """Generate a file with rain garden height included
+    
+    :args road_file: the file with the road height
+    :args rain_indices: the file with the indices of the rain garden"""
+    
+    domain = np.genfromtxt(road_file, delimiter=',')
+    indices = np.genfromtxt(rain_indices, delimiter=',')[1:, :]
+    
+    for i in range(len(indices)):
+        domain[301 - int(indices[i][1])][int(indices[i][0])] = indices[i][2]
+
+    df = pd.DataFrame(domain)
+    df.to_csv("data_generated/rain_garden_included.csv", header=False, index=False)
+    
 
 def find_indices_rain_garden(input_file, output_file):
     """Convert coordinates to indices for the rain garden
@@ -124,22 +140,25 @@ def find_indices_rain_garden(input_file, output_file):
     :args input_file: name of the input file
     :args output file: name of the output file"""
 
-    my_data = np.genfromtxt(input_file, delimiter=',')
-    print(my_data)
+    my_data = np.genfromtxt(input_file, delimiter=',')[1:,:]
+
     i=1
     while i < len(my_data):
-        my_data[i, 0] = int(my_data[i, 0] / dx)
-        my_data[i, 1] = int(my_data[i, 1] / dx)
+        my_data[i, 0] = int(5 * my_data[i, 0] )
+        my_data[i, 1] = int(5 * my_data[i, 1] )
         i+=1
-        pass
-    d = {'x_index': my_data[1:, 0], 'y_index': my_data[1:, 1], 'height': my_data[1:, 2]}
+        
+    d = {'x_index': my_data[:, 0], 'y_index': my_data[:, 1], 'height': my_data[:, 2]}
     df = pd.DataFrame(data=d)
     df["x_index"] = pd.to_numeric(df["x_index"], downcast="integer")
     df["y_index"] = pd.to_numeric(df["y_index"], downcast="integer")
     df.to_csv(output_file, header=True, index=False)
 
-#find_indices_rain_garden(f"data/rain_garden.csv", "data/rain_garden_indices.csv")
-#find_rain_garden(f"results/.csv", "results/rain_garden.csv")
+
+find_rain_garden("data/x_coords.csv", "data/y_coords.csv","data/malago_height.csv", "data_generated/rain_garden.csv")
+find_indices_rain_garden("data_generated/rain_garden.csv", "data_generated/rain_garden_indices.csv")
+add_rain_garden_to_domain2("data/malago_height.csv", "data_generated/rain_garden_indices.csv")
+
 #add_rain_garden_to_domain("data/rain_garden.csv", "results/road_10.csv")
 
 #create_paraview_table("data/x_coords.csv", "data/y_coords.csv", "results/h_road_10.csv", "results/road.csv")
