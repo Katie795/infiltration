@@ -1,16 +1,34 @@
 # Functions for pre- and post-processing data
 import numpy as np
 import pandas as pd
-dx = 0.2
+
+import tomllib
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--config",
+    type=str,
+    action="store",
+    help="name of the parameter file",
+    default="config.toml"
+)
+
+args, _ = parser.parse_known_args()
+
+with open(args.config, "rb") as f:
+    config = tomllib.load(f)
+
+
+dx = config["parameters"]["dx"]
+nx = config["parameters"]["nx"]
+ny = config["parameters"]["ny"]
 
 def generate_coords(filename):
     """Generate csv files containing the x and y coordinate data for a uniform grid
     
     :args filename: csv file to generate coordintates from"""
 
-    my_data = np.genfromtxt(filename, delimiter=',')
-    nx = len(my_data[0])
-    ny = len(my_data)
     x_coords = np.zeros((ny, nx))
     y_coords = np.zeros((ny, nx))
     for i in range(nx):
@@ -18,11 +36,11 @@ def generate_coords(filename):
             x_coords[j][i] = dx * i
             y_coords[j][i] = dx * ny - dx * (j + 1)
 
-    np.savetxt("data_generated/x_coords.csv", x_coords, delimiter=",")
-    np.savetxt("data_generated/y_coords.csv", y_coords, delimiter=",")
+    np.savetxt("data/x_coords.csv", x_coords, delimiter=",")
+    np.savetxt("data/y_coords.csv", y_coords, delimiter=",")
     return x_coords, y_coords
 
-def create_paraview_table(x_file, y_file, z_file, output_file):
+def create_xyz_table(z_file, output_file):
     """Write a paraview-readable csv file with coordinate data and height data, removing data not in
     domain of interest
 
@@ -32,8 +50,6 @@ def create_paraview_table(x_file, y_file, z_file, output_file):
     :args output_file: name of the file to write output data to"""
     
     x,y = generate_coords(z_file)
-    #x = np.genfromtxt(x_file, delimiter=',')
-    #y = np.genfromtxt(y_file, delimiter=',')
     my_data = np.genfromtxt(z_file, delimiter=',')
 
     my_data = my_data.flatten()
@@ -60,7 +76,7 @@ def create_paraview_table(x_file, y_file, z_file, output_file):
     df = df[df['height'].notna()]
     df.to_csv(output_file, header=True, index=False)  
 
-def find_rain_garden(x_file, y_file, z_file, output_file):
+def find_xyz_rain_garden(x_file, y_file, z_file, output_file):
     """Find the coordinates of the points within the rain garden and save as csv file
     
     :args x_file: file with the x coordinate data
@@ -73,7 +89,7 @@ def find_rain_garden(x_file, y_file, z_file, output_file):
     my_data = np.genfromtxt(z_file, delimiter=',')
 
     my_data = my_data.flatten()
-    my_data_new = my_data.flatten()
+
     x = x.flatten()
     y = y.flatten()
     x_new = []
@@ -106,7 +122,7 @@ def find_rain_garden(x_file, y_file, z_file, output_file):
     df.to_csv(output_file, header=True, index=False)
 
 
-def add_rain_garden_to_domain(garden_file, road_file):
+def add_rain_garden_to_domain_xyz(garden_file, road_file, output_file):
     """Concatonate the coordinates of the rain garden with the coordinates of the road
     
     :args garden_file: the file with the rain garden data
@@ -116,9 +132,9 @@ def add_rain_garden_to_domain(garden_file, road_file):
     df_road = pd.read_csv(road_file)
 
     full_df = pd.concat([df_garden, df_road], axis=0)
-    full_df.to_csv("data_generated/full_domain.csv", header=True, index=False)
+    full_df.to_csv(output_file, header=True, index=False)
 
-def add_rain_garden_to_domain2(road_file, rain_indices):
+def add_rain_garden_to_domain(road_file, rain_indices, output_file):
     """Generate a file with rain garden height included
     
     :args road_file: the file with the road height
@@ -131,7 +147,7 @@ def add_rain_garden_to_domain2(road_file, rain_indices):
         domain[301 - int(indices[i][1])][int(indices[i][0])] = indices[i][2]
 
     df = pd.DataFrame(domain)
-    df.to_csv("data_generated/rain_garden_included.csv", header=False, index=False)
+    df.to_csv(output_file, header=False, index=False)
     
 
 def find_indices_rain_garden(input_file, output_file):
@@ -155,18 +171,12 @@ def find_indices_rain_garden(input_file, output_file):
     df.to_csv(output_file, header=True, index=False)
 
 
-find_rain_garden("data/x_coords.csv", "data/y_coords.csv","data/malago_height.csv", "data_generated/rain_garden.csv")
-find_indices_rain_garden("data_generated/rain_garden.csv", "data_generated/rain_garden_indices.csv")
-add_rain_garden_to_domain2("data/malago_height.csv", "data_generated/rain_garden_indices.csv")
+if __name__ == "__main__":
+    # Script to find and include the rain garden
+    find_xyz_rain_garden("data/x_coords.csv", "data/y_coords.csv","data/malago_height.csv", "data/rain_garden.csv")
+    find_indices_rain_garden("data/rain_garden.csv", "data/rain_garden_indices.csv")
+    add_rain_garden_to_domain("data/malago_height.csv", "data/rain_garden_indices.csv", "data/full_domain.csv")
 
-#add_rain_garden_to_domain("data/rain_garden.csv", "results/road_10.csv")
-
-#create_paraview_table("data/x_coords.csv", "data/y_coords.csv", "results/h_road_10.csv", "results/road.csv")
-
-
-def post_processing(file, name, i):
-    """Function to post-process the csv files into a paraview readable format"""
-    create_paraview_table("data/x_coords.csv",
-                          "data/y_coords.csv",
-                          file,
-                          f"results/{name}_{i}.csv")
+    #Script to create results for paraview
+    create_xyz_table("data/malago_height.csv", "data/malago_height_xyz.csv") # xyz_table
+    add_rain_garden_to_domain_xyz("data/rain_garden.csv", "data/malago_height_xyz.csv", "data/full_domain_xyz.csv")

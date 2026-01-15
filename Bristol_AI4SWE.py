@@ -12,8 +12,29 @@
 import numpy as np 
 import time 
 import torch
-import functions
 from AIModule import AI4SWE
+import tomllib
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--config",
+    type=str,
+    action="store",
+    help="name of the parameter file",
+    default="config.toml"
+)
+
+parser.add_argument(
+    "--infiltration",
+    action="store_true",
+    help="whether to apply infiltration to the rain garden"
+)
+
+args, _ = parser.parse_known_args()
+
+with open(args.config, "rb") as f:
+    config = tomllib.load(f)
 
 # Check if GPU is available 
 is_gpu = torch.cuda.is_available()
@@ -24,11 +45,11 @@ print(f"Running on device {device}")
 # # # ######   Numerical parameters ###### # # #
 # # # ################################### # # #
 # create a torch constant
-# TODO double check these torch constants
-dt = torch.tensor([0.05], device=device) # timestep (s)
-dx = torch.tensor([0.2], device=device) # spatial discretisation (m) (here it is 20cm)
-nx = torch.tensor([294], device=device) # number of points in x direction
-ny = torch.tensor([302], device=device) # number of points in y direction
+
+dt = torch.tensor([config["parameters"]["dt"]], device=device) # timestep (s)
+dx = torch.tensor([config["parameters"]["dx"]], device=device) # spatial discretisation (m) (here it is 20cm)
+nx = torch.tensor([config["parameters"]["nx"]], device=device) # number of points in x direction
+ny = torch.tensor([config["parameters"]["ny"]], device=device) # number of points in y direction
 CFL = np.sqrt(9.81*4)*dt/dx # for gravity waves with wavenumber 0.25
 print('Grid size:', dx,'CFL:', CFL)
 # # # ################################### # # #
@@ -64,8 +85,8 @@ wm = torch.reshape(wm,(1,1,3,3))
 
 #######################################################
 ################# Numerical parameters ################
-ntime = 10                # Time steps
-n_out = 10                  # How often to save the results 
+ntime = config["parameters"]["nt"]    # Time steps
+n_out = config["parameters"]["n_out"] # How often to save the results 
 nrestart = 0                # Last time step for restart
 ctime_old = 0               # Last ctime for restart
 mgsolver = True             # Multigrid solver for non-hydrostatic pressure 
@@ -135,21 +156,23 @@ print('Diagonal component:', diag)
 # # # ################################### # # #
 # # # #######   Initialisation ########## # # #
 # # # ################################### # # #
-# Specify the dimensions of the 2D data (width and height)
-# Open the .raw file for reading
+
 values_h = torch.zeros(input_shape, device=device)
 values_H = torch.zeros(input_shape, device=device)
-with open('data/malago_height.csv', 'r') as file:
-    # Read the entire content of the file and split it into individual values
+with open('data/full_domain.csv', 'r') as file:
     mesh = np.genfromtxt(file, delimiter=',')
-# Convert the string values to floats
-#mesh = np.array([float(value) for value in data])
-# Now, float_values contains a list of floating-point numbers from the .raw file
-mesh = mesh.reshape(int(ny),int(nx))
+
+mesh = mesh.reshape(ny,nx)
 values_H[0,0,:,:] = torch.tensor(mesh, device=device)
 
 # defining the source term
 source_h = torch.zeros(input_shape, device=device)
+
+
+# Transfer array into tensor
+values_h = values_H
+values_h_initital = values_H
+values_H = - values_H ## this is used for info about the bathymetry of the surface! Values_H is fixed!
 
 def get_source(time):
     # here time is in seconds
@@ -160,26 +183,19 @@ def get_source(time):
     elif time >= 100:
         source_h[0,0, :, :] = 0
 
+q = 0.00000001 # infiltration rate
+indices = np.genfromtxt("data/rain_garden_indices.csv", delimiter=',')[1:, :]
+q_array = torch.zeros(input_shape, device=device)
+
+# find a quicker way of doing this!
+for i in range(len(indices)):
+    q_array[0][0][301 - int(indices[i][1])][int(indices[i][0])] = q
+
 def apply_infiltration(values_h):
-    q = 0.00001 # infiltration rate
-    #with open('data/rain_garden_indices.csv', 'r') as file:
-    # Read the entire content of the file and split it into individual values
-    rain_garden_indices = np.genfromtxt('data/rain_garden_indices.csv', delimiter=',')[1:, :]
 
-    #for i in range(len(rain_garden_indices)):
-    #    values_h[]
-
-    print(rain_garden_indices)
-        
-apply_infiltration(values_h)
-
-# Transfer array into tensor
-values_h = values_H
-values_h_initital = values_H
-values_H = - values_H ## this is used for info about the bathymetry of the surface! Values_H is fixed!
-
-# h is the road!!
-# H is everything but the road!!!
+    h_new = torch.maximum(values_h - q_array, values_h_initital) # make sure there are no negative values
+    return h_new
+    
 model = AI4SWE(w1, w2, w3, wm, bias_initializer, dx, beta, diag).to(device)
 
 start = time.time()
@@ -193,24 +209,22 @@ with torch.no_grad():
             [values_u, values_v, values_h, values_hh, dif_values_h, sigma_q] = model(values_u, values_uu, values_v, values_vv, values_H, values_h, 
                     values_hp, b_u, b_uu, b_v, b_vv, dt, rho, k1, k2, k3, eta1_p, source_h, dif_values_h, dif_values_hh, values_hh, values_hhp) # output          
         
+        if args.infiltration:
+            values_h = apply_infiltration(values_h)
+        
         real_time = real_time + dt
         istep +=1
 
         if np.max(np.abs(values_hh.cpu().detach().numpy())) > 10.0:
             print('Not converged !!!!!!')
             break
+
         print(f'Time step: {itime}, height correction: {np.max(values_hh.cpu().detach().numpy())}, time in seconds = {real_time.item():.0f}')
         print(f"Maximum depth is {np.max((values_h - values_h_initital).cpu().detach().numpy())}m") 
 
-        # values_H does not change!!
-
         if save_fig == True and itime % n_out == 0:
-            np.savetxt(f"results/eta_road_{itime}.csv", (values_h - values_h_initital).cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            np.savetxt(f"results/{config["files"]["eta_file"]}_{itime}.csv", (values_h - values_h_initital).cpu().detach().numpy()[0,0,:,:], delimiter=",")
             np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
-            #functions.post_processing(f"results/eta_road_{itime}.csv", "eta", itime)
-            #np.save("u"+str(itime), arr=values_v.cpu().detach().numpy()[0,0,:,:])
-            #np.save("v"+str(itime), arr=values_u.cpu().detach().numpy()[0,0,:,:])
-            # Open the CSV file for appending the data
             
     end = time.time()
-    print('time',(end-start))
+    print('Time to run simulation:',(end-start))

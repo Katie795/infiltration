@@ -1,0 +1,12 @@
+### Configuration file for Malago road simulation
+
+[parameters]
+nt    = 10000
+n_out = 100
+dt    = 0.02
+dx    = 0.2
+nx    = 294
+ny    = 302 
+
+[files]
+eta_file = "eta_infiltration" # this file is save to results and used to plot
