@@ -15,6 +15,7 @@ import torch
 from AIModule import AI4SWE
 import tomllib
 import argparse
+import infiltration 
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -159,6 +160,7 @@ print('Diagonal component:', diag)
 
 values_h = torch.zeros(input_shape, device=device)
 values_H = torch.zeros(input_shape, device=device)
+
 with open('data/full_domain.csv', 'r') as file:
     mesh = np.genfromtxt(file, delimiter=',')
 
@@ -182,19 +184,6 @@ def get_source(time):
         source_h[0,0, :, :] = 0.00278 * dt # source times timestep
     elif time >= 100:
         source_h[0,0, :, :] = 0
-
-q = 0.00000001 # infiltration rate
-indices = np.genfromtxt("data/rain_garden_indices.csv", delimiter=',')[1:, :]
-q_array = torch.zeros(input_shape, device=device)
-
-# find a quicker way of doing this!
-for i in range(len(indices)):
-    q_array[0][0][301 - int(indices[i][1])][int(indices[i][0])] = q
-
-def apply_infiltration(values_h):
-
-    h_new = torch.maximum(values_h - q_array, values_h_initital) # make sure there are no negative values
-    return h_new
     
 model = AI4SWE(w1, w2, w3, wm, bias_initializer, dx, beta, diag).to(device)
 
@@ -210,7 +199,10 @@ with torch.no_grad():
                     values_hp, b_u, b_uu, b_v, b_vv, dt, rho, k1, k2, k3, eta1_p, source_h, dif_values_h, dif_values_hh, values_hh, values_hhp) # output          
         
         if args.infiltration:
-            values_h = apply_infiltration(values_h)
+            values_h = infiltration.darcy(values_h, values_h_initital)
+            eta_filename = "eta_infiltration"
+        else:
+            eta_filename = "eta_impervious"
         
         real_time = real_time + dt
         istep +=1
@@ -223,7 +215,7 @@ with torch.no_grad():
         print(f"Maximum depth is {np.max((values_h - values_h_initital).cpu().detach().numpy())}m") 
 
         if save_fig == True and itime % n_out == 0:
-            np.savetxt(f"results/{config["files"]["eta_file"]}_{itime}.csv", (values_h - values_h_initital).cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            np.savetxt(f"results/{eta_filename}_{itime}.csv", (values_h - values_h_initital).cpu().detach().numpy()[0,0,:,:], delimiter=",")
             np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
             
     end = time.time()

@@ -32,7 +32,7 @@ def generate_coords(filename):
     x_coords = np.zeros((ny, nx))
     y_coords = np.zeros((ny, nx))
     for i in range(nx):
-        for j in range(ny-1):
+        for j in range(ny):
             x_coords[j][i] = dx * i
             y_coords[j][i] = dx * ny - dx * (j + 1)
 
@@ -112,7 +112,7 @@ def find_xyz_rain_garden(x_file, y_file, z_file, output_file):
         if all(bounding_box) and my_data[i] <= -9000:
             x_new.append(x[i])
             y_new.append(y[i])
-            garden_height.append(-2)
+            garden_height.append(-2.3) # height of rain garden
 
         i += 1
     d = {'x_coords': x_new, 'y_coords': y_new, 'height': garden_height}

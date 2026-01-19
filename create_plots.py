@@ -21,6 +21,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--q",
+    action="store_true",
+    help="whether to plot the values of q"
+)
+
+parser.add_argument(
     "--domain",
     action="store_true",
     help="whether to produce plots of the domain"
@@ -51,8 +57,6 @@ if args.animate:
         Z_masked = np.ma.masked_where(Z < 0.00000001, Z)
 
         fig, ax = plt.subplots(1,1, figsize=(20,20))
-        plt.xlim(0, 58.6) # set the maximum limits
-        plt.ylim(0, 60.2) # set the maximum limits
         height = ax.pcolormesh(X, Y, Z_masked, shading="nearest", vmin=0, vmax=deepest)
         cb = plt.colorbar(height, label="water depth (m)")
         plt.savefig(f"plots/timestep_{i}.png")
@@ -71,22 +75,18 @@ if args.animate_comparison:
     X = np.genfromtxt("data/x_coords.csv", delimiter=',')
     Y = np.genfromtxt("data/y_coords.csv", delimiter=',')
 
-    deepest_arrray = np.genfromtxt(f"results/eta_no_infiltration_{config["parameters"]["nt"]}.csv", delimiter=',')
+    deepest_arrray = np.genfromtxt(f"results/eta_impervious_{config["parameters"]["nt"]}.csv", delimiter=',')
     deepest = np.max(deepest_arrray)
 
     nfig = int(config["parameters"]["nt"]/ config["parameters"]["n_out"])
 
     for i in range(1, nfig):
-        Z1 = np.genfromtxt(f"results/eta_no_infiltration_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
+        Z1 = np.genfromtxt(f"results/eta_impervious_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
         Z2 = np.genfromtxt(f"results/eta_infiltration_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
-        Z_masked1 = np.ma.masked_where(Z1 < 0.0000000001, Z1)
-        Z_masked2 = np.ma.masked_where(Z2 < 0.0000000001, Z2)
+        Z_masked1 = np.ma.masked_where(np.isclose(Z1, 0.), Z1)
+        Z_masked2 = np.ma.masked_where(np.isclose(Z1, 0.), Z2)
 
-        fig, (ax1, ax2) = plt.subplots(1,2, figsize=(42,25))
-        ax1.set_xlim(0, 58.6) # set the maximum limits
-        ax1.set_xlim(0, 60.2) # set the maximum limits
-        ax2.set_xlim(0, 58.6) # set the maximum limits
-        ax2.set_xlim(0, 60.2) # set the maximum limits
+        fig, (ax1, ax2) = plt.subplots(1,2, figsize=(55,25))
         height1 = ax1.pcolormesh(X, Y, Z_masked1, shading="nearest", vmin=0, vmax=deepest)
         height2 = ax2.pcolormesh(X, Y, Z_masked2, shading="nearest", vmin=0, vmax=deepest)
         ax1.set_title("No infiltration")
@@ -129,4 +129,13 @@ if args.domain:
     plt.ylim(0, 60.2) # set the maximum limits
     ax.pcolormesh(X, Y, Z_masked, shading="nearest")
     plt.savefig(f"plots/full_domain.png")
+    plt.close()
+
+if args.q:
+    X = np.genfromtxt("data/x_coords.csv", delimiter=',')
+    Y = np.genfromtxt("data/y_coords.csv", delimiter=',')
+    q = np.genfromtxt("results/q.csv", delimiter=',')
+    fig, ax = plt.subplots(1,1, figsize=(20,20))
+    ax.pcolormesh(X, Y, q) 
+    plt.savefig(f"plots/q.png")
     plt.close()
