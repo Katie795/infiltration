@@ -21,6 +21,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--filename",
+    action="store",
+    help="whether to produce an animation of the water depth",
+    default="eta_infiltration"
+)
+
+parser.add_argument(
     "--q",
     action="store_true",
     help="whether to plot the values of q"
@@ -47,13 +54,13 @@ if args.animate:
     X = np.genfromtxt("data/x_coords.csv", delimiter=',')
     Y = np.genfromtxt("data/y_coords.csv", delimiter=',')
 
-    deepest_arrray = np.genfromtxt(f"results/eta_impervious_{config["parameters"]["nt"]}.csv", delimiter=',')
+    deepest_arrray = np.genfromtxt(f"results/{args.filename}_{config["parameters"]["nt"]}.csv", delimiter=',')
     deepest = np.max(deepest_arrray)
 
     nfig = int(config["parameters"]["nt"]/ config["parameters"]["n_out"])
 
     for i in range(1, nfig):
-        Z = np.genfromtxt(f"results/eta_impervious_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
+        Z = np.genfromtxt(f"results/{args.filename}_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
         Z_masked = np.ma.masked_where(Z < 0.00000001, Z)
 
         fig, ax = plt.subplots(1,1, figsize=(20,20))
