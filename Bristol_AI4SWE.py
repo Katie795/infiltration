@@ -211,7 +211,7 @@ with torch.no_grad():
             print('Not converged !!!!!!')
             break
 
-        print(f'Time step: {itime}, height correction: {np.max(values_hh.cpu().detach().numpy())}, time in seconds = {real_time.item():.0f}')
+        print(f'Time step: {itime}, height correction: {np.max(values_hh.cpu().detach().numpy())}, time = {real_time.item():.2f}s')
         print(f"Maximum depth is {np.max((values_h - values_h_initital).cpu().detach().numpy())}m") 
 
         if save_fig == True and itime % n_out == 0:
@@ -219,4 +219,4 @@ with torch.no_grad():
             np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
             
     end = time.time()
-    print('Time to run simulation:',(end-start))
+    print(f'Time to run simulation:{end-start}s')

@@ -73,7 +73,7 @@ if args.animate:
     images = []
     for i in range(1, nfig):
         images.append(imageio.imread(f"plots/timestep_{i}.png"))
-        imageio.mimsave("plots/animation.gif", images)
+        imageio.mimsave("plots/animation.mp4", images)
 
     for i in range(1, nfig):
         os.remove(f"plots/timestep_{i}.png")
@@ -105,7 +105,7 @@ if args.animate_comparison:
     images = []
     for i in range(1, nfig):
         images.append(imageio.imread(f"plots/timestep_{i}.png"))
-        imageio.mimsave("plots/animation.gif", images)
+        imageio.mimsave("plots/comparison_animation.mp4", images)
 
     for i in range(1, nfig):
         os.remove(f"plots/timestep_{i}.png")

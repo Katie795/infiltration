@@ -1,20 +1,15 @@
 ### Module to simulate infiltration through soil
 import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-q = 0.00000001 # infiltration rate
 indices = np.genfromtxt("data/rain_garden_indices.csv", delimiter=',')[2:, :2]
 indices = indices.astype(np.int64)
-print(indices)
+
 input_shape = (1, 1, 302, 294)
 is_gpu = torch.cuda.is_available()
 device = torch.device("cuda" if is_gpu else "cpu")
-
-# find a quicker way of doing this!
-#for i in range(len(indices)):
-#    q_array[0][0][301 - int(indices[i][1])][int(indices[i][0])] = 1
-
-#np.savetxt(f"results/q.csv", q_array.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 
      
 def apply_infiltration(values_h, values_h_initial, q):
@@ -41,4 +36,26 @@ def darcy(values_h, values_h_initial):
 
     return h_new
 
+
+class Infiltration(nn.Module):
+    def __init__(self, w1, w2, w3, wm, bias_initializer, dx, beta, diag):
+        super(Infiltration, self).__init__()
+        self.xadv = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.yadv = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+
+        self.diff.weight.data = w1
+        self.xadv.weight.data = w2
+        self.yadv.weight.data = w3
+        self.cmm.weight.data = wm
+
+        self.diff.bias.data = bias_initializer
+        self.xadv.bias.data = bias_initializer
+        self.yadv.bias.data = bias_initializer
+        self.cmm.bias.data = bias_initializer
+        
+        self.dx = dx
+        self.beta = beta
+        self.diag = diag
 
