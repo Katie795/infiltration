@@ -217,6 +217,8 @@ with torch.no_grad():
         if save_fig == True and itime % n_out == 0:
             np.savetxt(f"results/{eta_filename}_{itime}.csv", (values_h - values_h_initital).cpu().detach().numpy()[0,0,:,:], delimiter=",")
             np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            np.savetxt(f"results/u_{itime}.csv", (values_u).cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            np.savetxt(f"results/v_{itime}.csv", (values_v).cpu().detach().numpy()[0,0,:,:], delimiter=",")
             
     end = time.time()
     print(f'Time to run simulation:{end-start}s')
