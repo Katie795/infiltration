@@ -82,22 +82,22 @@ if args.animate_comparison:
     X = np.genfromtxt("data/x_coords.csv", delimiter=',')
     Y = np.genfromtxt("data/y_coords.csv", delimiter=',')
 
-    deepest_arrray = np.genfromtxt(f"results/eta_impervious_{config["parameters"]["nt"]}.csv", delimiter=',')
+    deepest_arrray = np.genfromtxt(f"results/u_{config["parameters"]["nt"]}.csv", delimiter=',')
     deepest = np.max(deepest_arrray)
 
     nfig = int(config["parameters"]["nt"]/ config["parameters"]["n_out"])
 
     for i in range(1, nfig):
-        Z1 = np.genfromtxt(f"results/eta_impervious_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
-        Z2 = np.genfromtxt(f"results/eta_infiltration_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
+        Z1 = np.genfromtxt(f"results/u_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
+        Z2 = np.genfromtxt(f"results/v_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
         Z_masked1 = np.ma.masked_where(np.isclose(Z1, 0.), Z1)
         Z_masked2 = np.ma.masked_where(np.isclose(Z1, 0.), Z2)
 
         fig, (ax1, ax2) = plt.subplots(1,2, figsize=(55,25))
-        height1 = ax1.pcolormesh(X, Y, Z_masked1, shading="nearest", vmin=0, vmax=deepest)
-        height2 = ax2.pcolormesh(X, Y, Z_masked2, shading="nearest", vmin=0, vmax=deepest)
-        ax1.set_title("No infiltration")
-        ax2.set_title("Infiltration")
+        height1 = ax1.pcolormesh(X, Y, Z_masked1, shading="nearest", vmin=0, vmax=deepest, cmap="magma")
+        height2 = ax2.pcolormesh(X, Y, Z_masked2, shading="nearest", vmin=0, vmax=deepest, cmap="magma")
+        ax1.set_title(r"Speed in $x$ direction")
+        ax2.set_title(r"Speed in $y$ direction")
         cb = plt.colorbar(height2, label="water depth (m)", ax=[ax1, ax2])
         plt.savefig(f"plots/timestep_{i}.png")
         plt.close()
@@ -105,7 +105,7 @@ if args.animate_comparison:
     images = []
     for i in range(1, nfig):
         images.append(imageio.imread(f"plots/timestep_{i}.png"))
-        imageio.mimsave("plots/comparison_animation.mp4", images)
+        imageio.mimsave("plots/comparison_animation_uv.mp4", images)
 
     for i in range(1, nfig):
         os.remove(f"plots/timestep_{i}.png")
