@@ -114,10 +114,11 @@ class AI4SWE(nn.Module):
         sigma_q = (b_u**2 + b_v**2)**0.5 * 0.055**2 / (torch.maximum( k1,
             self.dx*self.cmm(self.boundary_condition_eta(values_H+values_h,values_hp))*0.01+(values_H+values_h)*0.99 )**(4/3)) 
 
+        # Equation 22 and 23
         b_u = b_u / (1 + sigma_q * dt / rho)
         b_v = b_v / (1 + sigma_q * dt / rho) # equation 22 and 23?
 
-        [k_x,k_y] = self.PG_vector(b_uu, b_vv, b_u, b_v, k3)
+        [k_x, k_y] = self.PG_vector(b_uu, b_vv, b_u, b_v, k3)
         
         # forward euler time step (equation 27?)
         values_u = values_u + k_x * dt - b_u * self.xadv(b_uu) * dt - b_v * self.yadv(b_uu) * dt   
@@ -125,7 +126,7 @@ class AI4SWE(nn.Module):
         values_u = values_u - self.xadv(self.boundary_condition_eta(values_h,values_hp)) * dt
         values_v = values_v - self.yadv(self.boundary_condition_eta(values_h,values_hp)) * dt     
 
-        # bed roughness coefficient
+        # bed roughness coefficient - equation 16
         sigma_q = (values_u**2 + values_v**2)**0.5 * 0.055**2 / (torch.maximum( k1,
             self.dx*self.cmm(self.boundary_condition_eta(values_H+values_h,values_hp))*0.01+(values_H+values_h)*0.99 )**(4/3))
 
@@ -141,7 +142,7 @@ class AI4SWE(nn.Module):
         eta1 = torch.maximum(k2,(values_H + values_h)) # why is values_H used here?
         eta2 = torch.maximum(k1,(values_H + values_h))
 
-        # equation 14? or equation 24?
+        # Right hand side of equation 24, called b because it is Ax = b in Jacobi iteration.
         b = self.beta * rho * (-self.xadv(self.boundary_condition_eta(eta1,eta1_p)) * values_u - \
                            self.yadv(self.boundary_condition_eta(eta1,eta1_p)) * values_v - \
                            eta1 * self.xadv(values_uu) - eta1 * self.yadv(values_vv) + \
@@ -149,16 +150,16 @@ class AI4SWE(nn.Module):
                            self.cmm(self.boundary_condition_eta(dif_values_h,dif_values_hh)) / dt + source_h) / (dt * eta2)   
         values_h_old = values_h.clone()
 
-        # apply this twice for some reason, equation 24?
+        # Jacobi interation for equation 25
         for i in range(2):
-            values_hh = values_hh - (-self.diff(self.boundary_condition_eta(values_hh,values_hhp)) + self.beta * rho / (dt**2 * eta2) * values_hh) / \
+            values_hh = values_hh - (-self.diff(self.boundary_condition_eta(values_hh,values_hhp))  + self.beta * rho / (dt**2 * eta2) * values_hh) / \
                     (self.diag + self.beta * rho / (dt**2 * eta2)) + b / (self.diag + self.beta * rho / (dt**2 * eta2))
         
         values_h = values_h + values_hh # update values_h
         
         dif_values_h = values_h - values_h_old 
         
-        ### STEP 3: CORRECT VELOCITY ###
+        ### STEP 3: CORRECT VELOCITY ### - equation 27
         values_u = values_u - self.xadv(self.boundary_condition_eta(values_hh,values_hhp)) * dt / rho # equation 28
         values_v = values_v - self.yadv(self.boundary_condition_eta(values_hh,values_hhp)) * dt / rho 
 
