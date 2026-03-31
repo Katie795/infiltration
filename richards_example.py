@@ -6,11 +6,8 @@ from richards_functions import *
 
 
 # h = 0.1 should give an L2 error of 0.01
-nx_array = torch.tensor([80])
+nx_array = torch.tensor([10, 20, 40, 80])
 dt = 0.01
-dt_array = torch.tensor([0.01, 0.02, 0.05, 0.1])
-nt_array = torch.tensor([10, 5, 2, 1])
-t_array = torch.arange(start=0, end=0.11, step=dt)
 
 # Check if GPU is available 
 is_gpu = torch.cuda.is_available()
@@ -46,7 +43,7 @@ class AIRichards(nn.Module):
         # L is the lipschitz constant!
         L = 2
 
-        uuold   = dirichlet_boundary_condition(uold, u_exact(x_padded,y_padded,t))
+        uuold   = dirichlet_boundary_condition(uold, u_exact(x_padded,y_padded,t+dt))
         uuj     = dirichlet_boundary_condition(uj, u_exact(x_padded,y_padded,t+dt))
 
         for i in range(imax):
@@ -77,6 +74,8 @@ class AIRichards(nn.Module):
 
             uj[:]= ujplus[:]
 
+            print(f"L2 Difference between uj_plus and u_j is {loss(ujplus, uj)}")
+
         return ujplus  
 itime = 0
 
@@ -86,10 +85,12 @@ L2_error = []
 
 
 with torch.no_grad():
-    for j in range(len(nt_array)):
+    for j in range(len(nx_array)):
         length = 10
-        nx = nx_array[0]
+        nx = nx_array[j]
+        print(f"nx is {nx}")
         dx = length / nx
+        print(f"dx is {dx}")
         generate_coords(nx, nx, name="horung_", length=length)
         generate_padded_coords(nx, nx, name="horung_padded_", length=length)
         x = torch.tensor(np.genfromtxt("data/horung_x_coords.csv", delimiter=','))
@@ -104,8 +105,7 @@ with torch.no_grad():
         input_shape_pd = (1, 1, nx + 3, nx + 3)
         uj = torch.zeros(input_shape, device=device)
         uj[0][0] = u_init
-        #ujplus = torch.zeros(input_shape, device=device)
-        #uuj    = torch.zeros(input_shape_pd, device=device)
+
 
         w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
                     [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
@@ -123,32 +123,23 @@ with torch.no_grad():
         omega = 0.5 / nx
 
         model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, omega=omega).to(device)
-
         t=0
-        dt = dt_array[j]
-        
-        for itime in range(0, nt_array[j]):
 
-            print(f"Time is {t}")
+        u_new = model(uold, uj, t, dt, imax=500)
+        error1 = u_new - u_exact(x, y, t+dt)
 
-            u_new = model(uold, uj, t, dt, imax=500)
-            error1 = u_new - u_exact(x, y, t+dt)
+        plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t+dt)[0,0,:,:].cpu().numpy(), "exact_solution")
+        plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
+        plot_tensor(x, y, torch.abs(error1)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
-            plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t+dt)[0,0,:,:].cpu().numpy(), "exact_solution")
-            plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-            plot_tensor(x, y, torch.abs(error1)[0,0,:,:].cpu().numpy(), "model_exact_difference")
-
-            itime +=1
-            uold[:] = u_new[:]
-            t+= dt
-        L2_error.append(loss(u_new, u_exact(x, y, t)))
+        L2_error.append(loss(u_new, u_exact(x, y, t+dt)))
 
 fig, ax = plt.subplots(1,1, figsize=(6,6))
-plt.loglog(dt_array, L2_error, linestyle="dashed", marker="o", label=r"$\Delta x = 0.125$")
-plt.plot(dt_array, 0.2 *(dt_array), color="black", linestyle="dotted", label=r"Slope $= -1$" )
-ax.set_xlabel(r"$\Delta t$", fontsize=18)
+plt.loglog(1/nx_array.cpu().numpy(), L2_error, linestyle="dashed", marker="o", label=r"$\Delta t = 0.1$")
+plt.plot(1/nx_array.cpu().numpy(), 0.2 *(1/nx_array.cpu().numpy())**2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+ax.set_xlabel(r"$\Delta x$", fontsize=18)
 ax.set_ylabel(r"$L^2$ error", fontsize=18)
-plt.title("Error against time-step", fontsize=22)
+plt.title("Error against mesh-size", fontsize=22)
 plt.legend(fontsize=16)
 plt.tight_layout()
-plt.savefig(f"plots/time_error")
+plt.savefig(f"plots/mesh_error")

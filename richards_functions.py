@@ -163,12 +163,13 @@ if __name__ == "__main__":
 
 
 
-    plot_tensor(x, y, u_exact(x,y,t)[0,0,:,:], "u_exact")
-    plot_tensor(x, y, Kappa(x-y-t, nx, nx)[0,0,:,:], "Kappa")
-    plot_tensor(x, y, theta(x-y-t, nx, nx)[0,0,:,:], "theta")
+    plot_tensor(x, y, u_exact(x,y,t)[0,0,:,:].cpu(), "u_exact")
+    #plot_tensor(x, y, Kappa(x-y-t, nx, nx)[0,0,:,:].cpu(), "Kappa")
+    #plot_tensor(x, y, theta(x-y-t, nx, nx)[0,0,:,:].cpu(), "theta")
 
-    uu = dirichlet_boundary_condition(u_exact(x,y,t), uu, u_exact(x_padded,y_padded,t))
-    plot_tensor(x_padded, y_padded, uu[0,0,:,:], "dirichlet_bcs")
+    uu = dirichlet_boundary_condition(u_exact(x,y,t), u_exact(x_padded,y_padded,t))
+    plot_tensor(x_padded, y_padded, uu[0,0,:,:].cpu(), "dirichlet_bcs")
+    plot_tensor(x, y, u_exact(x_padded,y_padded,t)[0,0,1:nx+2,1:nx+2].cpu() - uu[0,0,1:nx+2,1:nx+2].cpu(), "dirichlet_bcs_error")
 
 
 
