@@ -1,206 +1,154 @@
 """Getting a simple richards example working, comparing to Horung-Messing problem."""
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 import torch.nn as nn
+from richards_functions import *
 
-nx = 100
-ny = 100
-dx = 0.1
-dt = 0.1
-t_array = torch.arange(start=0, end=2, step=dt)
+
+# h = 0.1 should give an L2 error of 0.01
+nx_array = torch.tensor([80])
+dt = 0.01
+dt_array = torch.tensor([0.01, 0.02, 0.05, 0.1])
+nt_array = torch.tensor([10, 5, 2, 1])
+t_array = torch.arange(start=0, end=0.11, step=dt)
 
 # Check if GPU is available 
 is_gpu = torch.cuda.is_available()
 device = torch.device("cuda" if is_gpu else "cpu")
 print(f"Running on device {device}")
 
-def generate_coords(nx, ny, dx, shiftx=0, shifty=0, name=""):
-    """Generate csv files containing the x and y coordinate data for a uniform grid
-    
-    :args filename: csv file to generate coordintates from"""
+loss = nn.MSELoss()
 
-    x_coords = np.zeros((ny, nx))
-    y_coords = np.zeros((ny, nx))
-    for i in range(nx):
-        for j in range(ny):
-            x_coords[j][i] = dx * (i - shiftx)
-            y_coords[j][i] = dx * ny - dx * ((j - shifty) + 1)
-
-    np.savetxt(f"data/{name}x_coords.csv", x_coords, delimiter=",")
-    np.savetxt(f"data/{name}y_coords.csv", y_coords, delimiter=",")
-    return x_coords, y_coords
-
-generate_coords(nx, ny, dx, name="horung_")
-generate_coords(nx + 2, ny + 2, dx, shiftx=1, shifty=-1, name="horung_padded_")
-
-def theta(u, nx, ny):
-    ans = torch.zeros((ny, nx), device=device)
-    print(f"u.shape is {u.shape}")
-    newu = u[0][0]
-    print(f"newu.shape is {newu.shape}")
-    for i in range(nx):
-        for j in range(ny):
-            if newu[i][j] < 0:
-                ans[i][j] = 0.5 * torch.pi**2 - 2 * torch.atan(newu[i][j])**2
-            elif newu[i][j] >= 0:
-                ans[i][j] = 0.5 * torch.pi**2
-            else:
-                print("Error in the theta calculation")
-    print(f"Theta on device {ans.device}")
-    return ans
-
-def Kappa(u, nx, ny):
-    ans = torch.zeros((ny, nx), device=device)
-    newu = u[0][0]
-    for i in range(nx):
-        for j in range(ny):
-            if newu[i][j] < 0:
-                ans[i][j] = 2 / (1 + newu[i][j]**2)
-            elif newu[i][j] >= 0:
-                ans[i][j] = 2
-            else:
-                print("Error in the theta calculation")
-    return ans
-
-x = torch.tensor(np.genfromtxt("data/horung_x_coords.csv", delimiter=','))
-y = torch.tensor(np.genfromtxt("data/horung_y_coords.csv", delimiter=','))
-x_padded = torch.tensor(np.genfromtxt("data/horung_padded_x_coords.csv", delimiter=','))
-y_padded = torch.tensor(np.genfromtxt("data/horung_padded_y_coords.csv", delimiter=','))
-
-def u_exact(x,y,t):
-    
-    ans = torch.zeros((len(y), len(x)), device=device)
-
-    s = x - y - t
-    for i in range(nx):
-        for j in range(ny):
-            if s[i][j] < 0:
-                ans[i][j] = -0.5 * s[i][j]
-            elif s[i][j] >= 0:
-                ans[i][j] = - torch.tan((torch.exp(s[i][j])- 1)/(torch.exp(s[i][j]) + 1))
-            else:
-                print("Error in the theta calculation")
-    return ans
-
-
-
-input_shape = (1, 1, ny, nx)
-input_shape_pd = (1, 1, ny + 2, nx + 2)
-uold   = torch.zeros(input_shape, device=device)
-uuold  = torch.zeros(input_shape_pd, device=device)
-uj     = torch.zeros(input_shape, device=device)
-ujplus = torch.zeros(input_shape, device=device)
-uuj    = torch.zeros(input_shape_pd, device=device)
-
-print(f"u_old shape is {uold.shape}")
-
-def dirichlet_boundary_condition(u, uu, g):
-    print(f"Shape of u is {u.shape}")
-    ny = u.shape[2] 
-    nx = u.shape[3]
-    nny = uu.shape[2] # this is just ny + 2 (ny with padding)
-    nnx = uu.shape[3] # this is just nx + 2 (with padding)
-    ones = torch.ones(nny, device=device)
-    print(uu[0,0,:,0].shape)
-    print(g.shape)
-    print(ones.shape)
-
-
-
-    uu[0,0,1:nny-1,1:nnx-1] = u[0,0,:,:] # insert u values in the interior
-    uu[0,0,:,0]    = g[:,0] * ones # set Dirichlet boundary conditions 
-    uu[0,0,:,nx+1] = g[:,nx+1] * ones # set Dirichlet boundary conditions 
-    uu[0,0,0,:]    = g[0,:] * ones # set Dirichlet boundary conditions 
-    uu[0,0,ny+1,:] = g[ny+1,:] * ones # set Dirichlet boundary conditions 
-    return uu   
-
-u_init = u_exact(x,y,0)
-
-
-fig, ax = plt.subplots(1,1, figsize=(20,20))
-height = ax.pcolormesh(x, y, u_init.cpu().numpy())
-plt.title("Analytical solution for horung test")
-plt.savefig(f"plots/horung_test.png")
-
-w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
-                    [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
-                    [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
-# Gradient in x 
-w2 = torch.tensor([[[[1/(12*dx)], [0.0], [-1/(12*dx)]],
-                    [[1/(3*dx)] , [0.0], [-1/(3*dx)]] ,
-                    [[1/(12*dx)], [0.0], [-1/(12*dx)]]]], device=device)
-# Gradient in y 
-w3 = torch.tensor([[[[-1/(12*dx)], [-1/(3*dx)], [-1/(12*dx)]],
-                    [[0.0]       , [0.0]      , [0.0]]       ,
-                    [[1/(12*dx)] , [1/(3*dx)] , [1/(12*dx)]]]], device=device)
-# Consistant mass matrix 
-wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
-                    [[0.11] ,  [0.44], [0.11]],
-                    [[0.028], [0.11] , [0.028]]]], device=device)
+bias_initializer = torch.tensor([0.0], device=device)
+beta = 4                    # diagonal factor in mass term
 
 class AIRichards(nn.Module):
-    def __init__(self, w1, w2, w3, wm):
+    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, omega=1):
         super(AIRichards, self).__init__()
-        self.xadv = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-        self.yadv = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
 
         self.diff.weight.data = w1
-        self.xadv.weight.data = w2
-        self.yadv.weight.data = w3
         self.cmm.weight.data = wm
 
-    def forward(self, uold, uuold, uuj, uj, t, dt, imax=10):
+        self.diff.bias.data = bias_initializer
+        self.cmm.bias.data = bias_initializer
+        
+        self.dx = length / nx
+        self.beta = beta
+        self.diag = diag
+        self.omega = omega
+
+    def forward(self, uold, uj, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
         # Taken from the paper!!! 
-        # Here we
-        L = 1
-        print(f"Length of x_padded is {len(x_padded)}")
+        # What values for L and D do we take?
+        # L is the lipschitz constant!
+        L = 2
 
-        uuold     = dirichlet_boundary_condition(uold, uuold, u_exact(x_padded,y_padded,t))
-        uuj       = dirichlet_boundary_condition(uj, uuj, u_exact(x_padded,y_padded,t))
-        uujplus   = dirichlet_boundary_condition(uj, uuj, u_exact(x_padded,y_padded,t))
+        uuold   = dirichlet_boundary_condition(uold, u_exact(x_padded,y_padded,t))
+        uuj     = dirichlet_boundary_condition(uj, u_exact(x_padded,y_padded,t+dt))
 
-        print(f"uuold.device is {uuold.device}")
-        print(f"uuj is of device {uujplus.device}")
-        ujplus = uj
-
-        
-
-        for i in range(2):
+        for i in range(imax):
             # Right hand side of Jacobi iteration
-            b = L * uj + theta(uold, nx, ny) - theta(uj, nx, ny)
 
-            print(self.xadv(uuj))
+            uuj = dirichlet_boundary_condition(uj, u_exact(x_padded,y_padded,t+dt))
 
+            div_k_grad_uj = - 0.5 * (Kappa(uuj, nx , nx) * self.diff(uuj)  + self.diff(Kappa(uuj, nx + 2, nx + 2 ) * uuj) - uj * self.diff(Kappa(uuj, nx + 2, nx + 2)))
 
+            A = dt * div_k_grad_uj
+            b = self.cmm(theta(uuold, nx+2, nx+2) - theta(uuj, nx+2, nx+2))
 
+            ujplus = uj  + self.omega * (b - A)
+
+            # L METHOD!!!
+            #b = self.cmm(L * uuj + theta(uuold, nx+2, nx+2) - theta(uuj, nx+2, nx+2))
+            #div_k_grad_uj = - 0.5 * (Kappa(uuj, nx , nx) * self.diff(uujplus)  + self.diff(Kappa(uuj, nx + 2, nx + 2 ) * uujplus) - ujplus * self.diff(Kappa(uuj, nx + 2, nx + 2)))   
             ## Need to check this is the right iteration scheme
-            A = L * ujplus + dt * 0.5 * self.diff(torch.mul(Kappa(uuj, nx + 2, ny + 2), uujplus)) + Kappa(uuj) * self.diff(uujplus) - uujplus * self.diff(Kappa(uuj))
-            D = self.diag
+            #A = self.cmm(L * uujplus) + dt * div_k_grad_uj
+            #D = self.diag
+            #ujplus = uj  + self.omega * (b - A) # residual loop. Is scale of D right? is A right? Is the balance of uuj and uujplus right?
             
-            ujplus = uj  + 1 / D * (b - A) # residual loop. Is scale of D right? is A right? Is the balance of uuj and uujplus right?
-            uj = ujplus
+            if loss(ujplus, uj) <= 1e-9:
+                print(f"Jacobi iterations converged after {i+1} iterations")
+                break
 
-        return ujplus
-    
+            print(f"L2 Difference between uj_plus and u_j is {loss(ujplus, uj)}")
 
-model = AIRichards(w1, w2, w3, wm).to(device)
+            uj[:]= ujplus[:]
+
+        return ujplus  
 itime = 0
 
 L2_error = []
 
+
+
+
 with torch.no_grad():
-    u_old = torch.unsqueeze(torch.unsqueeze(u_init, 0), 0)
-    uj = torch.unsqueeze(torch.unsqueeze(u_init, 0), 0)
-    for itime in range(1, len(t_array)+1):
-        unew = model(u_old, uuold, uuj, uj, t_array[itime], dt)
+    for j in range(len(nt_array)):
+        length = 10
+        nx = nx_array[0]
+        dx = length / nx
+        generate_coords(nx, nx, name="horung_", length=length)
+        generate_padded_coords(nx, nx, name="horung_padded_", length=length)
+        x = torch.tensor(np.genfromtxt("data/horung_x_coords.csv", delimiter=','))
+        y = torch.tensor(np.genfromtxt("data/horung_y_coords.csv", delimiter=','))
+        x_padded = torch.tensor(np.genfromtxt("data/horung_padded_x_coords.csv", delimiter=','))
+        y_padded = torch.tensor(np.genfromtxt("data/horung_padded_y_coords.csv", delimiter=','))
 
-        itime +=1
+        u_init = u_exact(x,y,0)
+        uold = u_init
 
-        L2_error.append(torch.linalg.matrix_norm(unew, u_exact(x,y,t_array[itime])))
+        input_shape = (1, 1, nx + 1, nx + 1)
+        input_shape_pd = (1, 1, nx + 3, nx + 3)
+        uj = torch.zeros(input_shape, device=device)
+        uj[0][0] = u_init
+        #ujplus = torch.zeros(input_shape, device=device)
+        #uuj    = torch.zeros(input_shape_pd, device=device)
 
+        w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
+                    [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
+                    [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
 
-print(L2_error)
+        # Consistant mass matrix 
+        wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
+                            [[0.11] ,  [0.44], [0.11]],
+                            [[0.028], [0.11] , [0.028]]]], device=device)
+
+        w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
+        wm = torch.reshape(wm,(1,1,3,3))
+        diag = -np.array(w1.cpu())[0,0,1,1]
+
+        omega = 0.5 / nx
+
+        model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, omega=omega).to(device)
+
+        t=0
+        dt = dt_array[j]
+        
+        for itime in range(0, nt_array[j]):
+
+            print(f"Time is {t}")
+
+            u_new = model(uold, uj, t, dt, imax=500)
+            error1 = u_new - u_exact(x, y, t+dt)
+
+            plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t+dt)[0,0,:,:].cpu().numpy(), "exact_solution")
+            plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
+            plot_tensor(x, y, torch.abs(error1)[0,0,:,:].cpu().numpy(), "model_exact_difference")
+
+            itime +=1
+            uold[:] = u_new[:]
+            t+= dt
+        L2_error.append(loss(u_new, u_exact(x, y, t)))
+
+fig, ax = plt.subplots(1,1, figsize=(6,6))
+plt.loglog(dt_array, L2_error, linestyle="dashed", marker="o", label=r"$\Delta x = 0.125$")
+plt.plot(dt_array, 0.2 *(dt_array), color="black", linestyle="dotted", label=r"Slope $= -1$" )
+ax.set_xlabel(r"$\Delta t$", fontsize=18)
+ax.set_ylabel(r"$L^2$ error", fontsize=18)
+plt.title("Error against time-step", fontsize=22)
+plt.legend(fontsize=16)
+plt.tight_layout()
+plt.savefig(f"plots/time_error")
