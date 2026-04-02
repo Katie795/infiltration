@@ -6,7 +6,7 @@ from richards_functions import *
 
 
 # h = 0.1 should give an L2 error of 0.01
-nx_array = torch.tensor([10, 20, 40, 80])
+nx_array = torch.tensor([20])
 dt = 0.01
 
 # Check if GPU is available 
@@ -43,13 +43,14 @@ class AIRichards(nn.Module):
         # L is the lipschitz constant!
         L = 2
 
-        uuold   = dirichlet_boundary_condition(uold, u_exact(x_padded,y_padded,t+dt))
-        uuj     = dirichlet_boundary_condition(uj, u_exact(x_padded,y_padded,t+dt))
+        uuold   = dirichlet_boundary_condition(uold, u_exact(x_padded,y_padded,t))
 
         for i in range(imax):
             # Right hand side of Jacobi iteration
 
             uuj = dirichlet_boundary_condition(uj, u_exact(x_padded,y_padded,t+dt))
+
+            #plot_tensor(x_padded, y_padded, torch.abs(uuj -  u_exact(x_padded,y_padded,t+dt))[0,0,:,:].cpu().numpy(), "model_exact_difference2")
 
             div_k_grad_uj = - 0.5 * (Kappa(uuj, nx , nx) * self.diff(uuj)  + self.diff(Kappa(uuj, nx + 2, nx + 2 ) * uuj) - uj * self.diff(Kappa(uuj, nx + 2, nx + 2)))
 
@@ -60,9 +61,9 @@ class AIRichards(nn.Module):
 
             # L METHOD!!!
             #b = self.cmm(L * uuj + theta(uuold, nx+2, nx+2) - theta(uuj, nx+2, nx+2))
-            #div_k_grad_uj = - 0.5 * (Kappa(uuj, nx , nx) * self.diff(uujplus)  + self.diff(Kappa(uuj, nx + 2, nx + 2 ) * uujplus) - ujplus * self.diff(Kappa(uuj, nx + 2, nx + 2)))   
-            ## Need to check this is the right iteration scheme
-            #A = self.cmm(L * uujplus) + dt * div_k_grad_uj
+            #div_k_grad_uj = - 0.5 * (Kappa(uuj, nx , nx) * self.diff(uuj)  + self.diff(Kappa(uuj, nx + 2, nx + 2 ) * uuj) - uj * self.diff(Kappa(uuj, nx + 2, nx + 2)))   
+            # Need to check this is the right iteration scheme
+            #A = self.cmm(L * uuj) + dt * div_k_grad_uj
             #D = self.diag
             #ujplus = uj  + self.omega * (b - A) # residual loop. Is scale of D right? is A right? Is the balance of uuj and uujplus right?
             
@@ -73,8 +74,6 @@ class AIRichards(nn.Module):
             print(f"L2 Difference between uj_plus and u_j is {loss(ujplus, uj)}")
 
             uj[:]= ujplus[:]
-
-            print(f"L2 Difference between uj_plus and u_j is {loss(ujplus, uj)}")
 
         return ujplus  
 itime = 0
@@ -125,7 +124,7 @@ with torch.no_grad():
         model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, omega=omega).to(device)
         t=0
 
-        u_new = model(uold, uj, t, dt, imax=500)
+        u_new = model(uold, uj, t, dt, imax=1000)
         error1 = u_new - u_exact(x, y, t+dt)
 
         plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t+dt)[0,0,:,:].cpu().numpy(), "exact_solution")
@@ -134,12 +133,14 @@ with torch.no_grad():
 
         L2_error.append(loss(u_new, u_exact(x, y, t+dt)))
 
+'''
 fig, ax = plt.subplots(1,1, figsize=(6,6))
-plt.loglog(1/nx_array.cpu().numpy(), L2_error, linestyle="dashed", marker="o", label=r"$\Delta t = 0.1$")
-plt.plot(1/nx_array.cpu().numpy(), 0.2 *(1/nx_array.cpu().numpy())**2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+plt.loglog(1/(nx_array.cpu().numpy()), L2_error, linestyle="dashed", marker="o", label=r"$\Delta t = 0.1$")
+plt.plot(1/(nx_array.cpu().numpy()), 0.2 *(1/(nx_array.cpu().numpy()))**2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=18)
 ax.set_ylabel(r"$L^2$ error", fontsize=18)
 plt.title("Error against mesh-size", fontsize=22)
 plt.legend(fontsize=16)
 plt.tight_layout()
 plt.savefig(f"plots/mesh_error")
+'''
