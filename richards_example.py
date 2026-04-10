@@ -91,7 +91,7 @@ itime = 0
 
 L2_error = []
 
-dt = 0.01
+dt = 0.02
 t = 0
 T = 1
 
