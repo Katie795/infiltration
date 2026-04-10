@@ -51,12 +51,13 @@ def generate_padded_coords(nx, ny, name="", length=1):
 
     return x_coords, y_coords
 
-def theta(s, nx, ny):
-    ans = torch.zeros((ny+1, nx+1), device=device)
-    news = s[0][0]
+def theta(s):
 
-    for i in range(nx+1):
-        for j in range(ny+1):
+    news = s[0][0]
+    ans = torch.zeros_like(news, device=device)
+
+    for i in range(news.shape[0]):
+        for j in range(news.shape[0]):
             if news[i][j] < 0:
                 ans[i][j] = 0.5 * torch.pi**2 - 2 * torch.atan(news[i][j])**2
             elif news[i][j] >= 0:
@@ -67,12 +68,12 @@ def theta(s, nx, ny):
 
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
 
-def theta_prime(s, nx, ny):
-    ans = torch.zeros((ny+1, nx+1), device=device)
+def theta_prime(s):
+    ans = torch.zeros_like(s, device=device)
     news = s[0][0]
 
-    for i in range(nx+1):
-        for j in range(ny+1):
+    for i in range(news[0]):
+        for j in range(len(news[0])):
             if news[i][j] < 0:
                 ans[i][j] =  - 4 * torch.atan(news[i][j])/ (news[i][j]**2 + 1)
             elif news[i][j] >= 0:
@@ -83,11 +84,12 @@ def theta_prime(s, nx, ny):
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
 
 
-def Kappa(s, nx, ny):
-    ans = torch.zeros((ny+1, nx+1), device=device)
+def Kappa(s):
     news = s[0][0]
-    for i in range(nx+1):
-        for j in range(ny+1):
+    ans = torch.zeros_like(news, device=device)
+
+    for i in range(news.shape[0]):
+        for j in range(news.shape[0]):
             if news[i][j] < 0:
                 ans[i][j] = 2 / (1 + news[i][j]**2)
             elif news[i][j] >= 0:
@@ -102,7 +104,7 @@ def Kappa_prime(s, nx, ny):
     for i in range(nx+1):
         for j in range(ny+1):
             if news[i][j] < 0:
-                ans[i][j] = -4*x / (1 + news[i][j]**2)**2
+                ans[i][j] = -4 * x / (1 + news[i][j]**2)**2
             elif news[i][j] >= 0:
                 ans[i][j] = 0
             else:
@@ -133,13 +135,13 @@ def dirichlet_boundary_condition(u, g):
 
     uu[0,0,1:nx+1,1:nx+1] = u[0,0,:,:] # insert u values in the interior 
     # left hand side 
-    uu[0,0,:,0] = g[0,0,:,1] # set Dirichlet boundary conditions 
+    uu[0,0,:,0] = g[0,0,:,0] # set Dirichlet boundary conditions 
     # right hand side
-    uu[0,0,:,nx+1] = g[0,0,:,nx] # set Dirichlet boundary conditions
+    uu[0,0,:,nx+1] = g[0,0,:,nx+1] # set Dirichlet boundary conditions
     # top side
-    uu[0,0,0,:] = g[0,0,1,:]  # set Dirichlet boundary conditions 
+    uu[0,0,0,:] = g[0,0,0,:]  # set Dirichlet boundary conditions 
     # bottom side
-    uu[0,0,ny+1,:] = g[0,0,ny,:]  # set Dirichlet boundary conditions 
+    uu[0,0,ny+1,:] = g[0,0,ny+1,:]  # set Dirichlet boundary conditions 
 
     return uu   
 
@@ -164,14 +166,9 @@ if __name__ == "__main__":
 
 
     plot_tensor(x, y, u_exact(x,y,t)[0,0,:,:].cpu(), "u_exact")
-    #plot_tensor(x, y, Kappa(x-y-t, nx, nx)[0,0,:,:].cpu(), "Kappa")
-    #plot_tensor(x, y, theta(x-y-t, nx, nx)[0,0,:,:].cpu(), "theta")
+    plot_tensor(x, y, Kappa(x-y-t)[0,0,:,:].cpu(), "Kappa")
+    plot_tensor(x, y, theta(x-y-t)[0,0,:,:].cpu(), "theta")
 
     uu = dirichlet_boundary_condition(u_exact(x,y,t), u_exact(x_padded,y_padded,t))
     plot_tensor(x_padded, y_padded, uu[0,0,:,:].cpu(), "dirichlet_bcs")
     plot_tensor(x, y, u_exact(x_padded,y_padded,t)[0,0,1:nx+2,1:nx+2].cpu() - uu[0,0,1:nx+2,1:nx+2].cpu(), "dirichlet_bcs_error")
-
-
-
-
-
