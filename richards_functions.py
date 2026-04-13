@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import torch.nn as nn
 
 is_gpu = torch.cuda.is_available()
 device = torch.device("cuda" if is_gpu else "cpu")
@@ -52,6 +53,12 @@ def generate_padded_coords(nx, ny, name="", length=1):
     return x_coords, y_coords
 
 def theta(s):
+    """theta(s) in the Horung-Messing test. Here
+    theta(s) = pi**2/2 - 2 arctan(s)**2 if s < 0,
+             = pi**2/2                  if s > 0.
+    
+    :args s: input where s = x - y - t
+    """
 
     news = s[0][0]
     ans = torch.zeros_like(news, device=device)
@@ -69,6 +76,12 @@ def theta(s):
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
 
 def theta_prime(s):
+    """theta'(s) in the Horung-Messing test. Needed for Newton's method. Here
+    theta'(s) = -4 arctan(s) / (s**2 + 1) if s < 0,
+              = 0                         if s > 0.
+    
+    :args s: input where s = x - y - t
+    """
     ans = torch.zeros_like(s, device=device)
     news = s[0][0]
 
@@ -79,12 +92,18 @@ def theta_prime(s):
             elif news[i][j] >= 0:
                 ans[i][j] = 0
             else:
-                print("Error in the theta calculation")
+                print("Error in the theta prime calculation")
                 break
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
 
 
 def Kappa(s):
+    """Kappa(s) in the Horung-Messing test. Here
+    Kappa(s) = 2 / (1 + s**2) if s < 0,
+             = 2              if s > 0.
+    
+    :args s: input where s = x - y - t
+    """
     news = s[0][0]
     ans = torch.zeros_like(news, device=device)
 
@@ -95,10 +114,16 @@ def Kappa(s):
             elif news[i][j] >= 0:
                 ans[i][j] = 2
             else:
-                print("Error in the theta calculation")
+                print("Error in the kappa calculation")
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
 
 def Kappa_prime(s, nx, ny):
+    """Kappa'(s) in the Horung-Messing test. Needed for Newton's method. Here
+    Kappa'(s) = -4s / (1 + s**2)**2 if s < 0,
+              = 0                   if s > 0.
+    
+    :args s: input where s = x - y - t
+    """
     ans = torch.zeros((ny+1, nx+1), device=device)
     news = s[0][0]
     for i in range(nx+1):
@@ -112,6 +137,11 @@ def Kappa_prime(s, nx, ny):
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
 
 def u_exact(x,y,t):
+    """Exact solution for the Horung-Messing test. Here
+    u_exact(s) = - s / 2                      if s < 0,
+               = - tan((e**s - 1)/(e**s + 1)) if s > 0.
+    
+    :args s: input where s = x - y - t"""
     
     ans = torch.zeros((len(y), len(x)), device=device)
 
@@ -123,10 +153,16 @@ def u_exact(x,y,t):
             elif s[j][i] >= 0:
                 ans[j][i] = - torch.tan((torch.exp(s[j][i])- 1)/(torch.exp(s[j][i]) + 1))
             else:
-                print("Error in the theta calculation")
+                print("Error in the u_exact calculation")
     return torch.unsqueeze(torch.unsqueeze(ans, 0), 0)
 
 def dirichlet_boundary_condition(u, g):
+    """Applies a boundary condition g to a function u.
+    
+    :args u: original function over nx x ny grid to which the boundary condition is applied
+    :args g: boundary function over nx+2 x ny+2 grid
+    
+    :returns uu: nx+2 x ny+2 function with u in interior cells and g on padded cells."""
 
     ny = u.shape[2] 
     nx = u.shape[3]
@@ -145,9 +181,75 @@ def dirichlet_boundary_condition(u, g):
 
     return uu   
 
+
+class AIRichards(nn.Module):
+    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10, omega=1):
+        super(AIRichards, self).__init__()
+        self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+
+        self.diff.weight.data = w1
+        self.cmm.weight.data = wm
+
+        self.diff.bias.data = bias_initializer
+        self.cmm.bias.data = bias_initializer
+        
+        self.nx = nx
+        self.length = length
+        self.dx = length / nx
+        self.beta = beta
+        self.diag = diag
+        self.omega = omega
+        self.loss = nn.MSELoss()
+
+    def forward(self, x, y, uold, ujinput, t, dt, imax=100):
+        """Here we use a Jacobi iteration with an L method to solve richard's equation."""
+
+
+        L = 2 # lipschitz constant 
+
+        uuold   = dirichlet_boundary_condition(uold, u_exact(x,y,t))
+
+        ujplus = torch.zeros_like(ujinput, device=device)
+        uj = torch.zeros_like(ujinput, device=device)
+        uj.data.copy_(ujinput.data)
+
+
+        for i in range(imax):
+            # Right hand side of Jacobi iteration
+
+            uuj = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
+
+            #plot_tensor(x_padded, y_padded, torch.abs(uuj -  u_exact(x_padded,y_padded,t+dt))[0,0,:,:].cpu().numpy(), "model_exact_difference2")
+
+            div_k_grad_uj = - 0.5 * (self.diff(Kappa(uuj) * uuj) + Kappa(uj) * self.diff(uuj) - uj * self.diff(Kappa(uuj)))
+
+            A = dt * div_k_grad_uj
+            b = self.cmm(theta(uuold) - theta(uuj))
+
+            ujplus.data.copy_(uj.data  + self.omega * (b.data - A.data))
+
+            # L METHOD!!!
+            #b = self.cmm(L * uuj + theta(uuold) - theta(uuj))
+            #div_k_grad_uj = - 0.5 * (Kappa(uj) * self.diff(uuj)  + self.diff(Kappa(uuj) * uuj) - uj * self.diff(Kappa(uuj)) )  
+            # Need to check this is the right iteration scheme
+            #A = self.cmm(L * uuj) + dt * div_k_grad_uj
+            #D = self.diag
+            #ujplus.data.copy_(uj.data  + 1 / self.diag * (b.data - A.data)) # residual loop. Is scale of D right? is A right? Is the balance of uuj and uujplus right?
+            
+            if self.loss(ujplus, uj) <= 1e-9:
+                print(f"Jacobi iterations converged after {i+1} iterations")
+                break
+
+            print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
+
+            uj.data.copy_(ujplus.data)
+
+        return ujplus  
+
+
 if __name__ == "__main__":
-    """Here we are plotting the output of these functions!
-    DO A SIMPLE TEST TO SEE IF IT WORKS!"""
+    """Here we are plotting the output of these functions"""
     length = 1
     nx = 10
     t = 0
@@ -163,11 +265,13 @@ if __name__ == "__main__":
     x_padded = torch.tensor(np.genfromtxt("data/horung_padded_x_coords.csv", delimiter=','))
     y_padded = torch.tensor(np.genfromtxt("data/horung_padded_y_coords.csv", delimiter=','))
 
+    s = torch.unsqueeze(torch.unsqueeze(x - y - t, 0), 0) 
+
 
 
     plot_tensor(x, y, u_exact(x,y,t)[0,0,:,:].cpu(), "u_exact")
-    plot_tensor(x, y, Kappa(x-y-t)[0,0,:,:].cpu(), "Kappa")
-    plot_tensor(x, y, theta(x-y-t)[0,0,:,:].cpu(), "theta")
+    plot_tensor(x, y, Kappa(s)[0,0,:,:].cpu(), "Kappa")
+    plot_tensor(x, y, theta(s)[0,0,:,:].cpu(), "theta")
 
     uu = dirichlet_boundary_condition(u_exact(x,y,t), u_exact(x_padded,y_padded,t))
     plot_tensor(x_padded, y_padded, uu[0,0,:,:].cpu(), "dirichlet_bcs")
