@@ -5,13 +5,13 @@ import torch.nn as nn
 from richards_functions import *
 
 # h = 0.1 should give an L2 error of 0.01
-nx_array = torch.tensor([10, 20, 40, 80, 160])
+nx_array = torch.tensor([10, 20, 40, 80])
 
 length = 10 # domain is [0, 10] x [0, 10]
 
 # Check if GPU is available 
 is_gpu = torch.cuda.is_available()
-device = torch.device("cuda" if is_gpu else "cpu")
+device = torch.device("cuda:0" if is_gpu else "cpu")
 print(f"Running on device {device}")
 
 loss = nn.MSELoss()
@@ -21,12 +21,12 @@ beta = 4                    # diagonal factor in mass term
 
 t = 0
 
-L2_error = []
-
+L2_error_dx = []
+L2_error_dt = []
 
 dt = 0.01
 
-'''
+
 with torch.no_grad():
     for nx in nx_array:
         dx = length / nx
@@ -68,7 +68,7 @@ with torch.no_grad():
         omega = 0.5 / nx
 
         model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, nx=nx, omega=omega).to(device)
-        u_new = model(uold, uj, t, dt, imax=1000)
+        u_new = model(x_padded, y_padded, uold, uj, t, dt, imax=1000)
 
         # These shouls be closer together 
         error1 = u_new - u_exact(x, y, t+dt)
@@ -77,12 +77,12 @@ with torch.no_grad():
         plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
         plot_tensor(x, y, torch.abs(error1)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
-        L2_error.append(loss(u_new, u_exact(x, y, t+dt)).cpu().numpy())
+        L2_error_dx.append(loss(u_new, u_exact(x, y, t+dt)).cpu().numpy())
 
 ### convergence plot ###
-print(f"L2_error is {L2_error}")
+print(f"L2_error is {L2_error_dx}")
 fig, ax = plt.subplots(1,1, figsize=(6,6))
-plt.loglog(1/(nx_array.cpu().numpy()), L2_error, linestyle="dashed", marker="o", label=r"$\Delta t = 0.1$")
+plt.loglog(1/(nx_array.cpu().numpy()), L2_error_dx, linestyle="dashed", marker="o", label=rf"$\Delta t = {dt}$")
 plt.plot(1/(nx_array.cpu().numpy()), 0.02 *(1/(nx_array.cpu().numpy()))**2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=18)
 ax.set_ylabel(r"$L^2$ error", fontsize=18)
@@ -90,7 +90,7 @@ plt.title("Error against mesh-size", fontsize=22)
 plt.legend(fontsize=16)
 plt.tight_layout()
 plt.savefig(f"plots/mesh_error")
-'''
+
 
 dt = 0.01
 t = 0
@@ -99,7 +99,7 @@ T = 0.1
 dt_array = np.array([0.1, 0.05, 0.02])
 
 with torch.no_grad():
-    nx = 20
+    nx = 40
     dx = length / nx
 
     generate_coords(nx, nx, name="horung_", length=length)
@@ -136,7 +136,7 @@ with torch.no_grad():
     wm = torch.reshape(wm,(1,1,3,3))
     diag = -np.array(w1.cpu())[0,0,1,1]
 
-    model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, nx=nx, omega=0.4).to(device)
+    model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, nx=nx, omega=0.1).to(device)
 
     for dt in dt_array:
         t=0
@@ -155,13 +155,13 @@ with torch.no_grad():
         plot_tensor(x, y, unew[0,0,:,:].cpu().numpy(), "model_solution")
         plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
-        L2_error.append(loss(unew, u_exact(x, y, T)).cpu().numpy())
+        L2_error_dt.append(loss(unew, u_exact(x, y, T)).cpu().numpy())
 
 ### convergence plot ###
-print(f"L2_error is {L2_error}")
+print(f"L2_error is {L2_error_dt}")
 
 fig, ax = plt.subplots(1,1, figsize=(6,6))
-plt.loglog(dt_array, L2_error, linestyle="dashed", marker="o", label=r"$\Delta x = 0.5$")
+plt.loglog(dt_array, L2_error_dt, linestyle="dashed", marker="o", label=r"$\Delta x = 0.5$")
 plt.plot(dt_array, 0.001 *(dt_array), color="black", linestyle="dotted", label=r"Slope $= -1$" )
 ax.set_xlabel(r"$\Delta t$", fontsize=18)
 ax.set_ylabel(r"$L^2$ error", fontsize=18)
