@@ -41,20 +41,10 @@ with torch.no_grad():
         x_padded = torch.tensor(np.genfromtxt("data/horung_padded_x_coords.csv", delimiter=','))
         y_padded = torch.tensor(np.genfromtxt("data/horung_padded_y_coords.csv", delimiter=','))
 
-        u_init = u_exact(x,y,0)
-        
-        input_shape = (1, 1, nx + 1, nx + 1)
-        input_shape_pd = (1, 1, nx + 3, nx + 3)
-        uj = torch.zeros(input_shape, device=device)
-        uold = torch.zeros(input_shape, device=device)
-        uj.data.copy_(u_init.data)
-        uold.data.copy_(u_init.data)
+        u_init = u_exact(x,y,0) # initial condition
+        uj   = u_init.clone()   # 
+        uold = u_init.clone()
 
-
-        #w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
-        #            [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
-        #            [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
-        
         w1 = torch.tensor([[[[0], [1/dx**2] , [0]],
                     [[1/dx**2], [-4/dx**2], [1/dx**2]],
                     [[0], [1/dx**2] , [0]]]], device=device)
@@ -63,10 +53,6 @@ with torch.no_grad():
         wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
                             [[0.11] ,  [0.44], [0.11]],
                             [[0.028], [0.11] , [0.028]]]], device=device)
-
-        #wm = torch.tensor([[[[dx**2/36], [dx**2/9] , [dx**2/36]],
-        #                    [[dx**2/9] ,  [dx**2*4/9], [dx**2/9]],
-        #                    [[dx**2/36], [dx**2/9] , [dx**2/36]]]], device=device)
 
         w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
         wm = torch.reshape(wm,(1,1,3,3))
@@ -81,20 +67,15 @@ with torch.no_grad():
             if t >= T:
                 print("t has reached the final time!")
                 break
-            uold.data.copy_(u_new)
+            uold = u_new.clone()
 
-
-        # These shouls be closer together 
-        error1 = u_new - u_exact(x, y, 0)
-        error2 = u_new - u_exact(x, y, t)
+        error = u_new - u_exact(x, y, t) # spatial error
 
         plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, dt)[0,0,:,:].cpu().numpy(), "exact_solution")
         plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-        plot_tensor(x, y, torch.abs(error1)[0,0,:,:].cpu().numpy(), "model_exact_difference1")
-        plot_tensor(x, y, torch.abs(error2)[0,0,:,:].cpu().numpy(), "model_exact_difference2")
+        plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
-
-        L2_error_dx.append(loss(u_new, u_exact(x, y, dt)).cpu().numpy())
+        L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
 
 ### convergence plot ###
 print(f"L2_error is {L2_error_dx}")
