@@ -24,12 +24,15 @@ t = 0
 L2_error_dx = []
 L2_error_dt = []
 
-dt = 0.01
-
+#dt = 0.01
+T = 0.02
 
 with torch.no_grad():
     for nx in nx_array:
+        t=0
         dx = length / nx
+        dt = 0.1 * dx ** 2
+        print(f"dt is {dt}")
 
         generate_coords(nx, nx, name="horung_", length=length)
         generate_padded_coords(nx, nx, name="horung_padded_", length=length)
@@ -48,36 +51,50 @@ with torch.no_grad():
         uold.data.copy_(u_init.data)
 
 
-        w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
-                    [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
-                    [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
+        #w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
+        #            [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
+        #            [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
+        
+        w1 = torch.tensor([[[[0], [1/dx**2] , [0]],
+                    [[1/dx**2], [-4/dx**2], [1/dx**2]],
+                    [[0], [1/dx**2] , [0]]]], device=device)
 
         # Consistant mass matrix 
-        #wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
-        #                    [[0.11] ,  [0.44], [0.11]],
-        #                    [[0.028], [0.11] , [0.028]]]], device=device)
+        wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
+                            [[0.11] ,  [0.44], [0.11]],
+                            [[0.028], [0.11] , [0.028]]]], device=device)
 
-        wm = torch.tensor([[[[dx**2/36], [dx**2/9] , [dx**2/36]],
-                            [[dx**2/9] ,  [dx**2*4/9], [dx**2/9]],
-                            [[dx**2/36], [dx**2/9] , [dx**2/36]]]], device=device)
+        #wm = torch.tensor([[[[dx**2/36], [dx**2/9] , [dx**2/36]],
+        #                    [[dx**2/9] ,  [dx**2*4/9], [dx**2/9]],
+        #                    [[dx**2/36], [dx**2/9] , [dx**2/36]]]], device=device)
 
         w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
         wm = torch.reshape(wm,(1,1,3,3))
-        diag = -np.array(w1.cpu())[0,0,1,1]
+        diag = 4/dx**2
 
-        omega = 0.5 / nx
+        model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, nx=nx).to(device)
 
-        model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, nx=nx, omega=omega).to(device)
-        u_new = model(x_padded, y_padded, uold, uj, t, dt, imax=1000)
+        while t < T:
+            u_new = model(x_padded, y_padded, uold, uj, t, dt, imax=1000)
+            t += dt
+            print(f"t = {t}")
+            if t >= T:
+                print("t has reached the final time!")
+                break
+            uold.data.copy_(u_new)
+
 
         # These shouls be closer together 
-        error1 = u_new - u_exact(x, y, t+dt)
+        error1 = u_new - u_exact(x, y, 0)
+        error2 = u_new - u_exact(x, y, t)
 
-        plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t+dt)[0,0,:,:].cpu().numpy(), "exact_solution")
+        plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, dt)[0,0,:,:].cpu().numpy(), "exact_solution")
         plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-        plot_tensor(x, y, torch.abs(error1)[0,0,:,:].cpu().numpy(), "model_exact_difference")
+        plot_tensor(x, y, torch.abs(error1)[0,0,:,:].cpu().numpy(), "model_exact_difference1")
+        plot_tensor(x, y, torch.abs(error2)[0,0,:,:].cpu().numpy(), "model_exact_difference2")
 
-        L2_error_dx.append(loss(u_new, u_exact(x, y, t+dt)).cpu().numpy())
+
+        L2_error_dx.append(loss(u_new, u_exact(x, y, dt)).cpu().numpy())
 
 ### convergence plot ###
 print(f"L2_error is {L2_error_dx}")
@@ -92,6 +109,8 @@ plt.tight_layout()
 plt.savefig(f"plots/mesh_error")
 
 
+
+'''
 dt = 0.01
 t = 0
 T = 0.1
@@ -169,3 +188,4 @@ plt.title("Error against time-step", fontsize=22)
 plt.legend(fontsize=16)
 plt.tight_layout()
 plt.savefig(f"plots/time_error")
+'''

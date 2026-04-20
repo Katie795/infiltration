@@ -51,7 +51,7 @@ def generate_padded_coords(nx, ny, name="", length=1):
     np.savetxt(f"data/{name}y_coords.csv", y_coords, delimiter=",")
 
     return x_coords, y_coords
-
+'''
 def theta(s):
     """theta(s) in the Horung-Messing test. Here
     theta(s) = pi**2/2 - 2 arctan(s)**2 if s < 0,
@@ -74,6 +74,23 @@ def theta(s):
                 break
 
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
+'''
+def theta(s):
+    """theta(s) in the Horung-Messing test. Here
+    theta(s) = pi**2/2 - 2 arctan(s)**2 if s < 0,
+             = pi**2/2                  if s > 0.
+    
+    :args s: input where s = x - y - t
+    """
+    s = s[0, 0]  # still assumes (1,1,n,n)
+
+    base = 0.5 * torch.pi**2
+    atan_term = 2 * torch.atan(s)**2
+
+    ans = torch.where(s < 0, base - atan_term, base)
+
+    return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
+
 
 def theta_prime(s):
     """theta'(s) in the Horung-Messing test. Needed for Newton's method. Here
@@ -94,9 +111,9 @@ def theta_prime(s):
             else:
                 print("Error in the theta prime calculation")
                 break
-    return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
+    return torch.unsqueeze(torch.unsqueeze(ans, 0),0).to(torch.float32)
 
-
+'''
 def Kappa(s):
     """Kappa(s) in the Horung-Messing test. Here
     Kappa(s) = 2 / (1 + s**2) if s < 0,
@@ -116,6 +133,23 @@ def Kappa(s):
             else:
                 print("Error in the kappa calculation")
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
+'''
+
+def Kappa(s):
+    """Kappa(s) in the Horung-Messing test. Here
+    Kappa(s) = 2 / (1 + s**2) if s < 0,
+             = 2              if s > 0.
+    
+    :args s: input where s = x - y - t
+    """
+    s = s[0, 0]
+
+    base = 2.0
+    kappa_left = 2.0 / (1.0 + s**2)
+
+    ans = torch.where(s < 0, kappa_left, base)
+
+    return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
 
 def Kappa_prime(s, nx, ny):
     """Kappa'(s) in the Horung-Messing test. Needed for Newton's method. Here
@@ -136,6 +170,7 @@ def Kappa_prime(s, nx, ny):
                 print("Error in the theta calculation")
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
 
+'''
 def u_exact(x,y,t):
     """Exact solution for the Horung-Messing test. Here
     u_exact(s) = - s / 2                      if s < 0,
@@ -155,6 +190,17 @@ def u_exact(x,y,t):
             else:
                 print("Error in the u_exact calculation")
     return torch.unsqueeze(torch.unsqueeze(ans, 0), 0)
+'''
+
+def u_exact(x, y, t):
+    s = x - y - t
+
+    left = -0.5 * s
+    right = -torch.tan(torch.tanh(s / 2))
+
+    ans = torch.where(s < 0, left, right)
+
+    return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
 
 def dirichlet_boundary_condition(u, g):
     """Applies a boundary condition g to a function u.
@@ -249,7 +295,7 @@ class AIRichards(nn.Module):
 '''
 
 class AIRichards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10, omega=1):
+    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10):
         super(AIRichards, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -264,41 +310,39 @@ class AIRichards(nn.Module):
         self.length = length
         self.dx = length / nx
         self.diag = diag
-        self.omega = omega
         self.loss = nn.MSELoss()
 
     def forward(self, x, y, uold, ujinput, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
-        L = 2 # lipschitz constant 
+        L = 2
 
-        uuold   = dirichlet_boundary_condition(uold, u_exact(x,y,t))
+        ujplus = ujinput.clone()
+        uj = ujinput.clone()
+        uuj  = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
 
-        ujplus = torch.zeros_like(ujinput, device=device)
-        ujplus.data.copy_(ujinput.data)
-
-        uj = torch.zeros_like(ujinput, device=device)
-        uj.data.copy_(ujinput.data)
+        b = L * uj + theta(uold) - theta(uj)
+        kappa_k  = Kappa(uj)
+        kappa_kk = Kappa(uuj)
 
         for i in range(imax):
             # Right hand side of Jacobi iteration
-            uuj     = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
             uujplus = dirichlet_boundary_condition(ujplus, u_exact(x,y,t+dt))
 
-            div_k_grad_uj = - 0.5 * (self.diff(Kappa(uuj) * uujplus) + Kappa(uj) * self.diff(uujplus) - ujplus * self.diff(Kappa(uuj)))
+            div_k_grad_uj = - 0.5 * (self.diff(kappa_kk * uujplus) + kappa_k * self.diff(uujplus) - ujplus * self.diff(kappa_kk)) 
 
-            A = dt * div_k_grad_uj
-            b = self.cmm(theta(uuold) - theta(uuj))
+            A = L * ujplus - dt * div_k_grad_uj 
 
-            ujplus = uj + self.omega * (b - A)
+            res = b - A
 
-            if self.loss(ujplus, uj) <= 1e-9:
+            ujplus = ujplus + (res) / self.diag
+
+            if self.loss(L * ujplus - dt * div_k_grad_uj , L * uj + theta(uold) - theta(uj)) <= 1e-12:
                 print(f"Jacobi iterations converged after {i+1} iterations")
                 break
 
-            print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
-
-            uj.data.copy_(ujplus.data)
+            #print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
+            #print(f"L2 Difference between Aujplus and b is {self.loss(L * ujplus - dt * div_k_grad_uj , L * uj + theta(uold) - theta(uj))}")
 
         return ujplus  
 
