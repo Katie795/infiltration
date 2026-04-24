@@ -151,24 +151,21 @@ def Kappa(s):
 
     return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
 
-def Kappa_prime(s, nx, ny):
+def Kappa_prime(s):
     """Kappa'(s) in the Horung-Messing test. Needed for Newton's method. Here
     Kappa'(s) = -4s / (1 + s**2)**2 if s < 0,
               = 0                   if s > 0.
     
     :args s: input where s = x - y - t
     """
-    ans = torch.zeros((ny+1, nx+1), device=device)
-    news = s[0][0]
-    for i in range(nx+1):
-        for j in range(ny+1):
-            if news[i][j] < 0:
-                ans[i][j] = -4 * x / (1 + news[i][j]**2)**2
-            elif news[i][j] >= 0:
-                ans[i][j] = 0
-            else:
-                print("Error in the theta calculation")
-    return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
+    s = s[0, 0]
+
+    base = 0
+    kappa_prime_left = -4 * s / (1 + s**2)**2
+
+    ans = torch.where(s < 0, kappa_prime_left, base)
+
+    return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
 
 '''
 def u_exact(x,y,t):
@@ -295,8 +292,64 @@ class AIRichards(nn.Module):
 '''
 
 class AIRichards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10):
+    def __init__(self, w1, wo, wm, bias_initializer, beta, diag, length=1, nx=10):
         super(AIRichards, self).__init__()
+        self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.diff_diag = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+
+
+        self.diff.weight.data = w1
+        self.diff_diag.weight.data = wo
+        self.cmm.weight.data = wm
+
+        self.diff.bias.data = bias_initializer
+        self.diff_diag.bias.data = bias_initializer
+        self.cmm.bias.data = bias_initializer
+        
+        self.nx = nx
+        self.length = length
+        self.dx = length / nx
+        self.diag = diag
+        self.loss = nn.MSELoss()
+
+    def forward(self, x, y, uold, ujinput, t, dt, imax=100, L=2):
+        """Here we use a Jacobi iteration with an L method to solve richard's equation."""
+
+        ujplus = ujinput.clone()
+        uj = ujinput.clone()
+        uuj  = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
+
+        for i in range(imax):
+
+            b = L * uj + theta(uold) - theta(uj)
+            kappa_k  = Kappa(uj)
+            kappa_kk = Kappa(uuj)
+            uujplus = dirichlet_boundary_condition(ujplus, u_exact(x,y,t+dt))
+
+            #div_k_grad_uj = - 0.5 * (self.diff(kappa_kk * uujplus) + kappa_k * self.diff(uujplus) - ujplus * self.diff(kappa_kk)) 
+            div_k_grad_uj_diag = - 0.5 * ((kappa_k * self.diff_diag(uujplus) + self.diff_diag(kappa_kk * uujplus)))
+
+            A = L * ujplus - dt * div_k_grad_uj_diag 
+
+            res = b - A
+
+            ujplus = ujplus + (res) / (kappa_k * self.diag)
+
+            if self.loss(A , b) <= 1e-12:
+                print(f"Jacobi iterations converged after {i+1} iterations")
+                break
+
+            #print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
+            print(f"L2 Difference between Aujplus and b is {self.loss(A , b)}")
+            uj = ujplus
+
+        return ujplus  
+    
+
+class AIRichardsNewton(nn.Module):
+    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10):
+        super(AIRichardsNewton, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
 
@@ -312,39 +365,53 @@ class AIRichards(nn.Module):
         self.diag = diag
         self.loss = nn.MSELoss()
 
-    def forward(self, x, y, uold, ujinput, t, dt, imax=100):
+    def forward(self, x, y, uold, ujinput, t, dt, imax=10, linmax=50, L=2):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
-        L = 2
-
-        ujplus = ujinput.clone()
+        #ujplus = ujinput.clone()
         uj = ujinput.clone()
         uuj  = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
 
-        b = L * uj + theta(uold) - theta(uj)
-        kappa_k  = Kappa(uj)
-        kappa_kk = Kappa(uuj)
-
         for i in range(imax):
-            # Right hand side of Jacobi iteration
-            uujplus = dirichlet_boundary_condition(ujplus, u_exact(x,y,t+dt))
 
-            div_k_grad_uj = - 0.5 * (self.diff(kappa_kk * uujplus) + kappa_k * self.diff(uujplus) - ujplus * self.diff(kappa_kk)) 
+            b = theta(uold) - theta(uj)
+            kappa_k  = Kappa(uj)
+            kappa_kk = Kappa(uuj)
 
-            A = L * ujplus - dt * div_k_grad_uj 
+            uuj = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
 
-            res = b - A
+            div_k_grad_uj = - 0.5 * (self.diff(kappa_kk * uuj) + kappa_k * self.diff(uuj) - uj * self.diff(kappa_kk)) 
 
-            ujplus = ujplus + (res) / self.diag
+            A =  dt * div_k_grad_uj 
 
-            if self.loss(L * ujplus - dt * div_k_grad_uj , L * uj + theta(uold) - theta(uj)) <= 1e-12:
-                print(f"Jacobi iterations converged after {i+1} iterations")
+            F = b - A
+            res_norm = torch.norm(F)
+
+            delta_u = torch.zeros_like(uj)
+
+
+            if res_norm <= 1e-12:
+                print(f"Newton converged after {i+1} iterations")
                 break
 
-            #print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
-            #print(f"L2 Difference between Aujplus and b is {self.loss(L * ujplus - dt * div_k_grad_uj , L * uj + theta(uold) - theta(uj))}")
+            for _ in range(linmax):
 
-        return ujplus  
+                #delta_bc = dirichlet_boundary_condition(delta_u, torch.zeros_like(uj))
+
+                #K_u = Kappa(uj)  # frozen in Newton step
+
+                div_delta = - 0.5 * (self.diff(kappa_kk * uuj) + kappa_k * self.diff(uuj) - uj * self.diff(kappa_kk)) 
+
+                # Approx Jacobian action
+                J_delta = Kappa_prime(uj) * delta_u - dt * div_delta
+
+                res_lin = -F - J_delta
+
+                delta_u = delta_u + res_lin / (self.diag + 1e-12)
+
+            uj = uj + delta_u
+
+        return uj  
 
 
 if __name__ == "__main__":

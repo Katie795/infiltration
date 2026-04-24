@@ -70,7 +70,6 @@ class AIRichards(nn.Module):
 
             uuj = dirichlet_boundary_condition(uj, g)
 
-
             A = - 0.5 * (self.diff(kappa(uuj) * uuj) + kappa(uj) * self.diff(uuj) - ujplus * self.diff(kappa(uuj))) 
 
             print(f"Double checking A {loss(A, self.diff(u_exact(x,y)))}")

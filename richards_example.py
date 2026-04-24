@@ -25,13 +25,14 @@ L2_error_dx = []
 L2_error_dt = []
 
 #dt = 0.01
-T = 0.02
+T = 0.002
 
 with torch.no_grad():
     for nx in nx_array:
         t=0
         dx = length / nx
-        dt = 0.1 * dx ** 2
+        dt = 0.0005
+        #dt = 0.01 * dx ** 2
         print(f"dt is {dt}")
 
         generate_coords(nx, nx, name="horung_", length=length)
@@ -48,6 +49,10 @@ with torch.no_grad():
         w1 = torch.tensor([[[[0], [1/dx**2] , [0]],
                     [[1/dx**2], [-4/dx**2], [1/dx**2]],
                     [[0], [1/dx**2] , [0]]]], device=device)
+        
+        wo = torch.tensor([[[[0], [1/dx**2] , [0]],
+                    [[1/dx**2], [0], [1/dx**2]],
+                    [[0], [1/dx**2] , [0]]]], device=device)
 
         # Consistant mass matrix 
         wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
@@ -56,18 +61,19 @@ with torch.no_grad():
 
         w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
         wm = torch.reshape(wm,(1,1,3,3))
+        wo = torch.reshape(wo,(1,1,3,3))
         diag = 4/dx**2
 
-        model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, nx=nx).to(device)
+        model = AIRichards(w1, wo, wm, bias_initializer, beta, diag, length=length, nx=nx).to(device)
 
-        while t < T:
-            u_new = model(x_padded, y_padded, uold, uj, t, dt, imax=1000)
-            t += dt
-            print(f"t = {t}")
-            if t >= T:
-                print("t has reached the final time!")
-                break
-            uold = u_new.clone()
+        #while t < T:
+        u_new = model(x_padded, y_padded, uold, uj, t, dt, imax=10000)
+        #    t += dt
+        #    print(f"t = {t}")
+        #    if t >= T:
+        #        print("t has reached the final time!")
+        #        break
+        #    uold = u_new.clone()
 
         error = u_new - u_exact(x, y, t) # spatial error
 
@@ -81,7 +87,7 @@ with torch.no_grad():
 print(f"L2_error is {L2_error_dx}")
 fig, ax = plt.subplots(1,1, figsize=(6,6))
 plt.loglog(1/(nx_array.cpu().numpy()), L2_error_dx, linestyle="dashed", marker="o", label=rf"$\Delta t = {dt}$")
-plt.plot(1/(nx_array.cpu().numpy()), 0.02 *(1/(nx_array.cpu().numpy()))**2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+plt.plot(1/(nx_array.cpu().numpy()), 0.001 *(1/(nx_array.cpu().numpy()))**2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=18)
 ax.set_ylabel(r"$L^2$ error", fontsize=18)
 plt.title("Error against mesh-size", fontsize=22)
