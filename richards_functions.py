@@ -224,7 +224,6 @@ def dirichlet_boundary_condition(u, g):
 
     return uu   
 
-'''
 class AIRichards(nn.Module):
     def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10, omega=1):
         super(AIRichards, self).__init__()
@@ -262,25 +261,22 @@ class AIRichards(nn.Module):
             # Right hand side of Jacobi iteration
 
             uuj = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
-
-            #plot_tensor(x_padded, y_padded, torch.abs(uuj -  u_exact(x_padded,y_padded,t+dt))[0,0,:,:].cpu().numpy(), "model_exact_difference2")
-
             div_k_grad_uj = - 0.5 * (self.diff(Kappa(uuj) * uuj) + Kappa(uj) * self.diff(uuj) - uj * self.diff(Kappa(uuj)))
 
-            A = dt * div_k_grad_uj
-            b = self.cmm(theta(uuold) - theta(uuj))
+            #A = dt * div_k_grad_uj
+            #b = self.cmm(theta(uuold) - theta(uuj))
 
-            ujplus.data.copy_(uj.data  + self.omega * (b.data - A.data))
+            #ujplus.data.copy_(uj.data  + self.omega * (b.data - A.data))
 
             # L METHOD!!!
-            #b = self.cmm(L * uuj + theta(uuold) - theta(uuj))
+            b = self.cmm(L * uuj + theta(uuold) - theta(uuj))
             #div_k_grad_uj = - 0.5 * (Kappa(uj) * self.diff(uuj)  + self.diff(Kappa(uuj) * uuj) - uj * self.diff(Kappa(uuj)) )  
             # Need to check this is the right iteration scheme
-            #A = self.cmm(L * uuj) + dt * div_k_grad_uj
+            A = self.cmm(L * uuj) + dt * div_k_grad_uj
             #D = self.diag
-            #ujplus.data.copy_(uj.data  + 1 / self.diag * (b.data - A.data)) # residual loop. Is scale of D right? is A right? Is the balance of uuj and uujplus right?
-            
-            if self.loss(ujplus, uj) <= 1e-9:
+            ujplus.data.copy_(uj.data  + self.omega * (b.data - A.data))
+
+            if self.loss(ujplus, uj) <= 1e-12:
                 print(f"Jacobi iterations converged after {i+1} iterations")
                 break
 
@@ -288,64 +284,7 @@ class AIRichards(nn.Module):
 
             uj.data.copy_(ujplus.data)
 
-        return ujplus  
-'''
-
-class AIRichards(nn.Module):
-    def __init__(self, w1, wo, wm, bias_initializer, beta, diag, length=1, nx=10):
-        super(AIRichards, self).__init__()
-        self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-        self.diff_diag = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-        self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-
-
-        self.diff.weight.data = w1
-        self.diff_diag.weight.data = wo
-        self.cmm.weight.data = wm
-
-        self.diff.bias.data = bias_initializer
-        self.diff_diag.bias.data = bias_initializer
-        self.cmm.bias.data = bias_initializer
-        
-        self.nx = nx
-        self.length = length
-        self.dx = length / nx
-        self.diag = diag
-        self.loss = nn.MSELoss()
-
-    def forward(self, x, y, uold, ujinput, t, dt, imax=100, L=2):
-        """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-
-        ujplus = ujinput.clone()
-        uj = ujinput.clone()
-        uuj  = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
-
-        for i in range(imax):
-
-            b = L * uj + theta(uold) - theta(uj)
-            kappa_k  = Kappa(uj)
-            kappa_kk = Kappa(uuj)
-            uujplus = dirichlet_boundary_condition(ujplus, u_exact(x,y,t+dt))
-
-            #div_k_grad_uj = - 0.5 * (self.diff(kappa_kk * uujplus) + kappa_k * self.diff(uujplus) - ujplus * self.diff(kappa_kk)) 
-            div_k_grad_uj_diag = - 0.5 * ((kappa_k * self.diff_diag(uujplus) + self.diff_diag(kappa_kk * uujplus)))
-
-            A = L * ujplus - dt * div_k_grad_uj_diag 
-
-            res = b - A
-
-            ujplus = ujplus + (res) / (kappa_k * self.diag)
-
-            if self.loss(A , b) <= 1e-12:
-                print(f"Jacobi iterations converged after {i+1} iterations")
-                break
-
-            #print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
-            print(f"L2 Difference between Aujplus and b is {self.loss(A , b)}")
-            uj = ujplus
-
-        return ujplus  
-    
+        return ujplus, i 
 
 class AIRichardsNewton(nn.Module):
     def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10):
@@ -411,7 +350,7 @@ class AIRichardsNewton(nn.Module):
 
             uj = uj + delta_u
 
-        return uj  
+        return uj
 
 
 if __name__ == "__main__":

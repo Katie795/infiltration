@@ -115,9 +115,9 @@ with torch.no_grad():
         uj.data.copy_(u_init.data)
         g_exact.data.copy_(u_init_padded.data)
 
-        w1 = torch.tensor([[[[0], [-1/dx**2] , [0]],
-                    [[-1/dx**2], [4/dx**2], [-1/dx**2]],
-                    [[0], [-1/dx**2] , [0]]]], device=device)
+        w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
+                    [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
+                    [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
         
         w2 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
                     [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
@@ -149,7 +149,7 @@ with torch.no_grad():
 print(f"L2_error is {L2_error_dx}")
 fig, ax = plt.subplots(1,1, figsize=(6,6))
 plt.loglog(1/(nx_array.cpu().numpy()), L2_error_dx, linestyle="dashed", marker="o")
-plt.plot(1/(nx_array.cpu().numpy()), 0.002 *(1/(nx_array.cpu().numpy()))**2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+plt.plot(1/(nx_array.cpu().numpy()), 0.0000000002 *(1/(nx_array.cpu().numpy()))**2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=18)
 ax.set_ylabel(r"$L^2$ error", fontsize=18)
 plt.title("Error against mesh-size", fontsize=22)

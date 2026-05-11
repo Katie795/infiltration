@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import pandas as pd
 from richards_functions import *
 
 # h = 0.1 should give an L2 error of 0.01
@@ -23,9 +24,10 @@ t = 0
 
 L2_error_dx = []
 L2_error_dt = []
+niterations = []
 
 #dt = 0.01
-T = 0.002
+T = 0.01
 
 with torch.no_grad():
     for nx in nx_array:
@@ -46,14 +48,10 @@ with torch.no_grad():
         uj   = u_init.clone()   # 
         uold = u_init.clone()
 
-        w1 = torch.tensor([[[[0], [1/dx**2] , [0]],
-                    [[1/dx**2], [-4/dx**2], [1/dx**2]],
-                    [[0], [1/dx**2] , [0]]]], device=device)
+        w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
+                    [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
+                    [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
         
-        wo = torch.tensor([[[[0], [1/dx**2] , [0]],
-                    [[1/dx**2], [0], [1/dx**2]],
-                    [[0], [1/dx**2] , [0]]]], device=device)
-
         # Consistant mass matrix 
         wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
                             [[0.11] ,  [0.44], [0.11]],
@@ -61,19 +59,19 @@ with torch.no_grad():
 
         w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
         wm = torch.reshape(wm,(1,1,3,3))
-        wo = torch.reshape(wo,(1,1,3,3))
-        diag = 4/dx**2
 
-        model = AIRichards(w1, wo, wm, bias_initializer, beta, diag, length=length, nx=nx).to(device)
+        diag = -8/3/dx**2
 
-        #while t < T:
-        u_new = model(x_padded, y_padded, uold, uj, t, dt, imax=10000)
-        #    t += dt
-        #    print(f"t = {t}")
-        #    if t >= T:
-        #        print("t has reached the final time!")
-        #        break
-        #    uold = u_new.clone()
+        model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, nx=nx).to(device)
+
+        while t < T:
+            u_new, nit = model(x_padded, y_padded, uold, uj, t, dt, imax=10000)
+            t += dt
+            print(f"t = {t}")
+            if t >= T:
+                print("t has reached the final time!")
+                break
+            uold = u_new.clone()
 
         error = u_new - u_exact(x, y, t) # spatial error
 
@@ -82,20 +80,24 @@ with torch.no_grad():
         plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
         L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
+        niterations.append(nit)
 
 ### convergence plot ###
-print(f"L2_error is {L2_error_dx}")
+print(f"L2_error is {np.array(L2_error_dx)}")
 fig, ax = plt.subplots(1,1, figsize=(6,6))
 plt.loglog(1/(nx_array.cpu().numpy()), L2_error_dx, linestyle="dashed", marker="o", label=rf"$\Delta t = {dt}$")
 plt.plot(1/(nx_array.cpu().numpy()), 0.001 *(1/(nx_array.cpu().numpy()))**2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
-ax.set_xlabel(r"$\Delta x$", fontsize=18)
-ax.set_ylabel(r"$L^2$ error", fontsize=18)
-plt.title("Error against mesh-size", fontsize=22)
-plt.legend(fontsize=16)
+ax.set_xlabel(r"$\Delta x$", fontsize=12)
+ax.set_ylabel(r"$L^2$ error", fontsize=12)
+plt.title(f"Error against mesh-size, total time T = {T}", fontsize=16)
+plt.legend(fontsize=12)
 plt.tight_layout()
 plt.savefig(f"plots/mesh_error")
 
+data = {"nx": nx_array.cpu().numpy(), "L2 error": np.array(L2_error_dx), "N iterations": np.array(niterations)}
+df = pd.DataFrame(data=data)
 
+print(df.to_latex(index=False))
 
 '''
 dt = 0.01
