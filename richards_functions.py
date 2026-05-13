@@ -51,30 +51,7 @@ def generate_padded_coords(nx, ny, name="", length=1):
     np.savetxt(f"data/{name}y_coords.csv", y_coords, delimiter=",")
 
     return x_coords, y_coords
-'''
-def theta(s):
-    """theta(s) in the Horung-Messing test. Here
-    theta(s) = pi**2/2 - 2 arctan(s)**2 if s < 0,
-             = pi**2/2                  if s > 0.
-    
-    :args s: input where s = x - y - t
-    """
 
-    news = s[0][0]
-    ans = torch.zeros_like(news, device=device)
-
-    for i in range(news.shape[0]):
-        for j in range(news.shape[0]):
-            if news[i][j] < 0:
-                ans[i][j] = 0.5 * torch.pi**2 - 2 * torch.atan(news[i][j])**2
-            elif news[i][j] >= 0:
-                ans[i][j] = 0.5 * torch.pi**2
-            else:
-                print("Error in the theta calculation")
-                break
-
-    return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
-'''
 def theta(s):
     """theta(s) in the Horung-Messing test. Here
     theta(s) = pi**2/2 - 2 arctan(s)**2 if s < 0,
@@ -113,27 +90,7 @@ def theta_prime(s):
                 break
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0).to(torch.float32)
 
-'''
-def Kappa(s):
-    """Kappa(s) in the Horung-Messing test. Here
-    Kappa(s) = 2 / (1 + s**2) if s < 0,
-             = 2              if s > 0.
-    
-    :args s: input where s = x - y - t
-    """
-    news = s[0][0]
-    ans = torch.zeros_like(news, device=device)
 
-    for i in range(news.shape[0]):
-        for j in range(news.shape[0]):
-            if news[i][j] < 0:
-                ans[i][j] = 2 / (1 + news[i][j]**2)
-            elif news[i][j] >= 0:
-                ans[i][j] = 2
-            else:
-                print("Error in the kappa calculation")
-    return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
-'''
 
 def Kappa(s):
     """Kappa(s) in the Horung-Messing test. Here
@@ -167,27 +124,7 @@ def Kappa_prime(s):
 
     return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
 
-'''
-def u_exact(x,y,t):
-    """Exact solution for the Horung-Messing test. Here
-    u_exact(s) = - s / 2                      if s < 0,
-               = - tan((e**s - 1)/(e**s + 1)) if s > 0.
-    
-    :args s: input where s = x - y - t"""
-    
-    ans = torch.zeros((len(y), len(x)), device=device)
 
-    s = x - y - t
-    for i in range(len(x)):
-        for j in range(len(y)):
-            if s[j][i] < 0:
-                ans[j][i] = -0.5 * s[j][i]
-            elif s[j][i] >= 0:
-                ans[j][i] = - torch.tan((torch.exp(s[j][i])- 1)/(torch.exp(s[j][i]) + 1))
-            else:
-                print("Error in the u_exact calculation")
-    return torch.unsqueeze(torch.unsqueeze(ans, 0), 0)
-'''
 
 def u_exact(x, y, t):
     s = x - y - t
@@ -246,8 +183,6 @@ class AIRichards(nn.Module):
 
     def forward(self, x, y, uold, ujinput, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-
-
         L = 2 # lipschitz constant 
 
         uuold   = dirichlet_boundary_condition(uold, u_exact(x,y,t))
