@@ -1,0 +1,9 @@
+### Configuration file for Malago road simulation
+
+[parameters]
+nt    = 100000 # 33.333 minutes
+n_out = 1000
+dt    = 0.02
+dx    = 0.015
+nx    = 300
+ny    = 100 

@@ -11,7 +11,7 @@ def plot_tensor(x, y, tensor, name):
     height = ax.pcolormesh(x, y, tensor)
     cb = plt.colorbar(height, label=name, ax=ax)
     plt.title(name)
-    plt.savefig(f"plots/{name}")
+    plt.savefig(f"../plots/{name}")
 
 def generate_coords(nx, ny, name="", length=1):
     """Generate csv files containing the x and y coordinate data for a uniform grid
@@ -28,8 +28,8 @@ def generate_coords(nx, ny, name="", length=1):
             x_coords[j][i] = dx * (i)
             y_coords[j][i] = dx * ny - dx * j
 
-    np.savetxt(f"data/{name}x_coords.csv", x_coords, delimiter=",")
-    np.savetxt(f"data/{name}y_coords.csv", y_coords, delimiter=",")
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
 
     return x_coords, y_coords
 
@@ -47,8 +47,8 @@ def generate_padded_coords(nx, ny, name="", length=1):
             x_coords[j][i] = dx * (i - 1)
             y_coords[j][i] = dx * ny - dx * (j-1) 
 
-    np.savetxt(f"data/{name}x_coords.csv", x_coords, delimiter=",")
-    np.savetxt(f"data/{name}y_coords.csv", y_coords, delimiter=",")
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
 
     return x_coords, y_coords
 
