@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import pandas as pd
-from tests.richards_functions import *
+from AI4Flood.richards_functions import *
 
 # h = 0.1 should give an L2 error of 0.01
 nx_array = torch.tensor([10, 20, 40, 80, 160])
@@ -27,7 +27,7 @@ L2_error_dt = []
 niterations = []
 
 #dt = 0.01
-T = 0.001
+T = 0.01
 
 with torch.no_grad():
     for nx in nx_array:
@@ -38,11 +38,11 @@ with torch.no_grad():
         print(f"dt is {dt}")
 
         generate_coords(nx, nx, name="horung_", length=length)
-        generate_padded_coords(nx, nx, name="horung_padded_", length=length)
-        x = torch.tensor(np.genfromtxt("data/horung_x_coords.csv", delimiter=','))
-        y = torch.tensor(np.genfromtxt("data/horung_y_coords.csv", delimiter=','))
-        x_padded = torch.tensor(np.genfromtxt("data/horung_padded_x_coords.csv", delimiter=','))
-        y_padded = torch.tensor(np.genfromtxt("data/horung_padded_y_coords.csv", delimiter=','))
+        generate_padded_coords(nx, nx, "horung_padded_", length=length)
+        x = torch.tensor(np.genfromtxt("../data/horung_x_coords.csv", delimiter=','))
+        y = torch.tensor(np.genfromtxt("../data/horung_y_coords.csv", delimiter=','))
+        x_padded = torch.tensor(np.genfromtxt("../data/horung_padded_x_coords.csv", delimiter=','))
+        y_padded = torch.tensor(np.genfromtxt("../data/horung_padded_y_coords.csv", delimiter=','))
 
         u_init = u_exact(x,y,0) # initial condition
         uj   = u_init.clone()   # 
@@ -53,17 +53,13 @@ with torch.no_grad():
                     [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
         
         # Consistant mass matrix 
-        #wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
-        #                    [[0.11] ,  [0.44], [0.11]],
-        #                    [[0.028], [0.11] , [0.028]]]], device=device)
+        wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
+                            [[0.11] ,  [0.44], [0.11]],
+                            [[0.028], [0.11] , [0.028]]]], device=device)
         
         wm = torch.tensor([[[[0.0], [0.0], [0.0]],
                             [[0.0], [1.0], [0.0]],
                             [[0.0], [0.0], [0.0]]]], device=device)
-
-        #wm = torch.tensor([[[[dx**2*0.028], [dx**2*0.11] , [dx**2*0.028]],
-        #                   [[dx**2*0.11] ,  [dx**2*0.44], [dx**2*0.11]],
-        #                   [[dx**2*0.028], [dx**2*0.11] , [dx**2*0.028]]]], device=device)
 
         w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
         wm = torch.reshape(wm,(1,1,3,3))
@@ -100,4 +96,4 @@ ax.set_ylabel(r"$L^2$ error", fontsize=12)
 plt.title(f"Error against mesh-size, total time T = {T}", fontsize=16)
 plt.legend(fontsize=12)
 plt.tight_layout()
-plt.savefig(f"plots/mesh_error6")
+plt.savefig(f"../plots/mesh_error6")
