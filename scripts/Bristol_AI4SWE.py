@@ -12,7 +12,7 @@
 import numpy as np 
 import time 
 import torch
-from AI4Flood.AIModule import AI4SWE
+from AI4Flood.SWE import AI4SWE
 import tomllib
 import argparse
 import AI4Flood.infiltration as infiltration 
