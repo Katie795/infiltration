@@ -12,10 +12,10 @@
 import numpy as np 
 import time 
 import torch
-from AIModule import AI4SWE
+from AI4Flood.AIModule import AI4SWE
 import tomllib
 import argparse
-import infiltration 
+import AI4Flood.infiltration as infiltration 
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

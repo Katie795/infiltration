@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import pandas as pd
-from richards_functions import *
+from tests.richards_functions import *
 
 nx_array = torch.tensor([20, 40, 80, 160])
 dt_array = torch.tensor([0.0005])

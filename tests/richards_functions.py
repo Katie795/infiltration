@@ -242,7 +242,7 @@ class AIRichardsPC(nn.Module):
 
     def forward(self, x, y, uold, ujinput, t, dt, imax=2):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-        L = 3 # lipschitz constant, should be 2.
+        L = 5 # lipschitz constant, should be 2.
 
         uuold   = dirichlet_boundary_condition(uold, u_exact(x,y,t))
         uj = torch.zeros_like(ujinput, device=device)

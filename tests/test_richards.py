@@ -7,7 +7,7 @@
 
 import numpy as np
 import torch
-from richards_functions import *
+from tests.richards_functions import *
 
 is_gpu = torch.cuda.is_available()
 device = torch.device("cuda" if is_gpu else "cpu")
