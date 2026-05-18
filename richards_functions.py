@@ -125,7 +125,6 @@ def Kappa_prime(s):
     return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
 
 
-
 def u_exact(x, y, t):
     s = x - y - t
 
@@ -220,6 +219,64 @@ class AIRichards(nn.Module):
             uj.data.copy_(ujplus.data)
 
         return ujplus, i 
+    
+class AIRichardsPC(nn.Module):
+    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10, omega=1):
+        super(AIRichardsPC, self).__init__()
+        self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+
+        self.diff.weight.data = w1
+        self.cmm.weight.data = wm
+
+        self.diff.bias.data = bias_initializer
+        self.cmm.bias.data = bias_initializer
+        
+        self.nx = nx
+        self.length = length
+        self.dx = length / nx
+        self.beta = beta
+        self.diag = diag
+        self.omega = omega
+        self.loss = nn.MSELoss()
+
+    def forward(self, x, y, uold, ujinput, t, dt, imax=2):
+        """Here we use a Jacobi iteration with an L method to solve richard's equation."""
+        L = 3 # lipschitz constant, should be 2.
+
+        uuold   = dirichlet_boundary_condition(uold, u_exact(x,y,t))
+        uj = torch.zeros_like(ujinput, device=device)
+        uj.data.copy_(ujinput.data)
+
+
+        for i in range(imax):
+            # predictor step
+            uuj = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
+            div_k_grad_uj = - 0.5 * (self.diff(Kappa(uuj) * uuj) + Kappa(uj) * self.diff(uuj) - uj * self.diff(Kappa(uuj)))
+
+            ujstar = 1 / L * (self.cmm(theta(uuold) - theta(uuj) + L * uuj)) \
+                     + 1 / L * (dt * div_k_grad_uj)
+            
+            uujstar = dirichlet_boundary_condition(ujstar, u_exact(x,y,t+dt)) # apply boundary condition
+
+            # corrector step
+            ujpred = 0.5 * (uold + ujstar)
+            uujpred = 0.5 * (uuold + uujstar)
+            div_k_grad_uj_pred = - 0.5 * (self.diff(Kappa(uujpred) * uujpred) + Kappa(ujpred) * self.diff(uujpred) - ujpred * self.diff(Kappa(uujpred)))
+
+            ujplus = 1 / L * (self.cmm(theta(uuold) - theta(uujpred) + L * uujpred)) \
+                     + 1 / L * (dt * div_k_grad_uj_pred)
+            
+            if self.loss(ujplus, uj) <= 1e-12:
+                print(f"Jacobi iterations converged after {i+1} iterations")
+                break
+
+            print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
+
+            uj.data.copy_(ujplus.data)
+
+        return ujplus, i 
+
 
 class AIRichardsNewton(nn.Module):
     def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10):

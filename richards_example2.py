@@ -33,7 +33,7 @@ with torch.no_grad():
     for nx in nx_array:
         t=0
         dx = length / nx
-        dt = 0.0001
+        dt = 0.0005
         #dt = 0.01 * dx ** 2
         print(f"dt is {dt}")
 
@@ -53,19 +53,27 @@ with torch.no_grad():
                     [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
         
         # Consistant mass matrix 
-        wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
-                            [[0.11] ,  [0.44], [0.11]],
-                            [[0.028], [0.11] , [0.028]]]], device=device)
+        #wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
+        #                    [[0.11] ,  [0.44], [0.11]],
+        #                    [[0.028], [0.11] , [0.028]]]], device=device)
+        
+        wm = torch.tensor([[[[0.0], [0.0], [0.0]],
+                            [[0.0], [1.0], [0.0]],
+                            [[0.0], [0.0], [0.0]]]], device=device)
+
+        #wm = torch.tensor([[[[dx**2*0.028], [dx**2*0.11] , [dx**2*0.028]],
+        #                   [[dx**2*0.11] ,  [dx**2*0.44], [dx**2*0.11]],
+        #                   [[dx**2*0.028], [dx**2*0.11] , [dx**2*0.028]]]], device=device)
 
         w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
         wm = torch.reshape(wm,(1,1,3,3))
 
         diag = -8/3/dx**2
 
-        model = AIRichards(w1, wm, bias_initializer, beta, diag, length=length, nx=nx).to(device)
+        model = AIRichardsPC(w1, wm, bias_initializer, beta, diag, length=length, nx=nx).to(device)
 
         while t < T:
-            u_new, nit = model(x_padded, y_padded, uold, uj, t, dt, imax=10000)
+            u_new, nit = model(x_padded, y_padded, uold, uj, t, dt, imax=100)
             t += dt
             print(f"t = {t}")
             if t >= T:

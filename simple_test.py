@@ -123,9 +123,9 @@ with torch.no_grad():
                     [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
                     [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
         
-        wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
-                            [[0.11] ,  [0.44], [0.11]],
-                            [[0.028], [0.11] , [0.028]]]], device=device)
+        wm = torch.tensor([[[[0.0], [0.0], [0.0]],
+                            [[0.0], [1.0], [0.0]],
+                            [[0.0], [0.0], [0.0]]]], device=device)
         
         w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
         w2 = torch.reshape(w2,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
