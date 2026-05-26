@@ -19,13 +19,12 @@ def generate_coords(nx, ny, name="", length=1):
     :args filename: csv file to generate coordintates from"""
 
     dx = length / nx
-    print(f"dx is {dx}")
 
     x_coords = np.zeros((ny+1, nx+1))
     y_coords = np.zeros((ny+1, nx+1))
     for i in range(nx+1):
         for j in range(ny+1):
-            x_coords[j][i] = dx * (i)
+            x_coords[j][i] = dx * i
             y_coords[j][i] = dx * ny - dx * j
 
     np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
@@ -124,8 +123,15 @@ def Kappa_prime(s):
 
     return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
 
-
 def u_exact(x, y, t):
+    """u_exact in the Horung-Messing test.  Here
+    u_exact(x,y,t) = -1/2 s                     if s < 0,
+                   = - tan((e^s - 1)/(e^s + 1)) if s > 0.
+    
+    :args x: x coordinates
+    :args y: y coordinates
+    :args t: time
+    """
     s = x - y - t
 
     left = -0.5 * s
@@ -161,7 +167,7 @@ def dirichlet_boundary_condition(u, g):
     return uu   
 
 class AIRichards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10, omega=1):
+    def __init__(self, w1, wm, bias_initializer, x, y):
         super(AIRichards, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -172,56 +178,45 @@ class AIRichards(nn.Module):
         self.diff.bias.data = bias_initializer
         self.cmm.bias.data = bias_initializer
         
-        self.nx = nx
-        self.length = length
-        self.dx = length / nx
-        self.beta = beta
-        self.diag = diag
-        self.omega = omega
         self.loss = nn.MSELoss()
 
-    def forward(self, x, y, uold, ujinput, t, dt, imax=100):
+        self.x = x
+        self.y = y
+
+        #self.g = g
+
+    def forward(self, uold, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-        L = 2 # lipschitz constant 
+        L = 5 # lipschitz constant 
 
-        uuold   = dirichlet_boundary_condition(uold, u_exact(x,y,t))
+        uuold   = dirichlet_boundary_condition(uold, u_exact(self.x, self.y, t))
 
-        ujplus = torch.zeros_like(ujinput, device=device)
-        uj = torch.zeros_like(ujinput, device=device)
-        uj.data.copy_(ujinput.data)
-
+        ujplus = torch.zeros_like(uold, device=device)
+        uj = torch.zeros_like(uold, device=device)
+        uj.data.copy_(uold.data)
 
         for i in range(imax):
             # Right hand side of Jacobi iteration
 
-            uuj = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
+            uuj = dirichlet_boundary_condition(uj, u_exact(self.x, self.y, t + dt))
             div_k_grad_uj = - 0.5 * (self.diff(Kappa(uuj) * uuj) + Kappa(uj) * self.diff(uuj) - uj * self.diff(Kappa(uuj)))
 
-            #A = dt * div_k_grad_uj
-            #b = self.cmm(theta(uuold) - theta(uuj))
+            RHS =  self.cmm(theta(uuold) - theta(uuj)) + dt * div_k_grad_uj
 
-            #ujplus.data.copy_(uj.data  + self.omega * (b.data - A.data))
+            ujplus.data.copy_(uj.data  + 1 / L * RHS)
 
-            # L METHOD!!!
-            b = self.cmm(L * uuj + theta(uuold) - theta(uuj))
-            #div_k_grad_uj = - 0.5 * (Kappa(uj) * self.diff(uuj)  + self.diff(Kappa(uuj) * uuj) - uj * self.diff(Kappa(uuj)) )  
-            # Need to check this is the right iteration scheme
-            A = self.cmm(L * uuj) + dt * div_k_grad_uj
-            #D = self.diag
-            ujplus.data.copy_(uj.data  + self.omega * (b.data - A.data))
-
-            if self.loss(ujplus, uj) <= 1e-12:
-                print(f"Jacobi iterations converged after {i+1} iterations")
+            if torch.sqrt(torch.mean((ujplus - uj)**2)) <= 1e-12:
+                print(f"Iterations converged after {i+1} iterations")
                 break
 
-            print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
+            #print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
 
             uj.data.copy_(ujplus.data)
 
         return ujplus, i 
     
 class AIRichardsPC(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10, omega=1):
+    def __init__(self, w1, wm, bias_initializer, x, y):
         super(AIRichardsPC, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -232,44 +227,41 @@ class AIRichardsPC(nn.Module):
         self.diff.bias.data = bias_initializer
         self.cmm.bias.data = bias_initializer
         
-        #self.nx = nx
-        #self.length = length
-        #self.dx = length / nx
-        #self.beta = beta
-        #self.diag = diag
-        #self.omega = omega
         self.loss = nn.MSELoss()
+        self.x = x
+        self.y = y
 
-    def forward(self, x, y, uold, ujinput, t, dt, imax=2):
+    def forward(self, uold, t, dt, imax=2):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
         L = 5 # lipschitz constant, should be 2.
 
-        uuold = dirichlet_boundary_condition(uold, u_exact(x,y,t))
+        uuold = dirichlet_boundary_condition(uold, u_exact(self.x, self.y, t))
 
-        uj = torch.zeros_like(ujinput, device=device)
-        uj.data.copy_(ujinput.data)
-
+        ujplus = torch.zeros_like(uold, device=device)
+        uj = torch.zeros_like(uold, device=device)
+        uj.data.copy_(uold.data)
 
         for i in range(imax):
             # predictor step
-            uuj = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
+            uuj = dirichlet_boundary_condition(uj, u_exact(self.x, self.y, t + dt))
             div_k_grad_uj = - 0.5 * (self.diff(Kappa(uuj) * uuj) + Kappa(uj) * self.diff(uuj) - uj * self.diff(Kappa(uuj)))
 
-            ujstar = 1 / L * (self.cmm(theta(uuold) - theta(uuj) + L * uuj)) \
-                     + 1 / L * (dt * div_k_grad_uj)
+            RHS = self.cmm(theta(uuold) - theta(uuj)) + dt * div_k_grad_uj
+            ujstar =  uj + 1 / L * RHS
             
-            uujstar = dirichlet_boundary_condition(ujstar, u_exact(x,y,t+dt)) # apply boundary condition
+            uujstar = dirichlet_boundary_condition(ujstar, u_exact(self.x, self.y,t+dt)) # apply boundary condition
 
             # corrector step
             ujpred = 0.5 * (uold + ujstar)
-            uujpred = 0.5 * (uuold + uujstar)
+            uujpred = dirichlet_boundary_condition(ujpred, u_exact(self.x, self.y,t+dt))
+
             div_k_grad_uj_pred = - 0.5 * (self.diff(Kappa(uujpred) * uujpred) + Kappa(ujpred) * self.diff(uujpred) - ujpred * self.diff(Kappa(uujpred)))
 
-            ujplus = 1 / L * (self.cmm(theta(uuold) - theta(uujpred) + L * uujpred)) \
-                     + 1 / L * (dt * div_k_grad_uj_pred)
+            RHS_pred = self.cmm(theta(uuold) - theta(uujstar)) + dt * div_k_grad_uj_pred
+            ujplus.data.copy_(uj.data  + 1 / L * RHS_pred)
             
-            if self.loss(ujplus, uj) <= 1e-12:
-                print(f"Jacobi iterations converged after {i+1} iterations")
+            if torch.sqrt(torch.mean((ujplus - uj)**2)) <= 1e-12:
+                print(f"Ierations converged after {i+1} iterations")
                 break
 
             print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
@@ -300,7 +292,6 @@ class AIRichardsNewton(nn.Module):
     def forward(self, x, y, uold, ujinput, t, dt, imax=10, linmax=50, L=2):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
-        #ujplus = ujinput.clone()
         uj = ujinput.clone()
         uuj  = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
 

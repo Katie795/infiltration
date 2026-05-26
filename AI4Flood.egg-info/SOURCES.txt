@@ -1,9 +1,10 @@
 LICENSE
 README.md
 setup.py
-AI4Flood/AIModule.py
+AI4Flood/SWE.py
 AI4Flood/__init__.py
 AI4Flood/clear_output_folder.py
+AI4Flood/generate_csv_files.py
 AI4Flood/infiltration.py
 AI4Flood/richards_functions.py
 AI4Flood.egg-info/PKG-INFO

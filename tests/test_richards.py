@@ -3,7 +3,7 @@
 # 2: Tests whether interior dirichlet boundary function works for trivial case 
 # 3: Tests whether Kappa produces correct output for various inputs
 # 4: Tests whether theta produces correct output for various inputs
-# 5: Tests whether theta produces correct output for various inputs
+# 5: Tests whether uexact produces correct output for various inputs
 
 import numpy as np
 import torch
@@ -19,10 +19,10 @@ t = 0
 ### generate the coordinates ###
 generate_coords(nx, nx, name="horung_", length=length)
 generate_padded_coords(nx, nx, name="horung_padded_", length=length)
-x = torch.tensor(np.genfromtxt("data/horung_x_coords.csv", delimiter=','))
-y = torch.tensor(np.genfromtxt("data/horung_y_coords.csv", delimiter=','))
-x_padded = torch.tensor(np.genfromtxt("data/horung_padded_x_coords.csv", delimiter=','))
-y_padded = torch.tensor(np.genfromtxt("data/horung_padded_y_coords.csv", delimiter=','))
+x = torch.tensor(np.genfromtxt("../data/horung_x_coords.csv", delimiter=','))
+y = torch.tensor(np.genfromtxt("../data/horung_y_coords.csv", delimiter=','))
+x_padded = torch.tensor(np.genfromtxt("../data/horung_padded_x_coords.csv", delimiter=','))
+y_padded = torch.tensor(np.genfromtxt("../data/horung_padded_y_coords.csv", delimiter=','))
 
 ### tests ###
 
@@ -30,6 +30,7 @@ def test_coordinates():
     """Test whether x_padded and y_padded align with x and y"""
     assert torch.equal(x, x_padded[1:-1, 1:-1])
     assert torch.equal(y, y_padded[1:-1, 1:-1])
+    assert torch.equal(x[-1, -1], torch.tensor(length)) # test coords correspond to length
 
 def test_boundaries():
     """Test whether uu aligns with u_ex, when uu is u_exact with applied boundary condition"""
@@ -64,7 +65,7 @@ def test_theta():
     assert torch.isclose(theta(input3), torch.tensor(0.5 * torch.pi**2, device=device) - 2 * torch.arctan(torch.tensor(-0.25, device=device))**2)
     assert torch.isclose(theta(input4), torch.tensor(0.5 * torch.pi**2, device=device))
 
-def test_kappa():
+def test_uexact():
     """Test whether u_exact produces correct output when input = -0.5, -0.25, 0.25, and 0.5. This covers a range
     of values for x - y when (x,y) are in the [0,1]x[0,1] domain"""
     input1 = torch.tensor([[[[-0.5]]]])
