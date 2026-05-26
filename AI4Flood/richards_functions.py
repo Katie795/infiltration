@@ -232,19 +232,20 @@ class AIRichardsPC(nn.Module):
         self.diff.bias.data = bias_initializer
         self.cmm.bias.data = bias_initializer
         
-        self.nx = nx
-        self.length = length
-        self.dx = length / nx
-        self.beta = beta
-        self.diag = diag
-        self.omega = omega
+        #self.nx = nx
+        #self.length = length
+        #self.dx = length / nx
+        #self.beta = beta
+        #self.diag = diag
+        #self.omega = omega
         self.loss = nn.MSELoss()
 
     def forward(self, x, y, uold, ujinput, t, dt, imax=2):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
         L = 5 # lipschitz constant, should be 2.
 
-        uuold   = dirichlet_boundary_condition(uold, u_exact(x,y,t))
+        uuold = dirichlet_boundary_condition(uold, u_exact(x,y,t))
+
         uj = torch.zeros_like(ujinput, device=device)
         uj.data.copy_(ujinput.data)
 
