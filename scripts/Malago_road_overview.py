@@ -17,25 +17,6 @@ import tomllib
 import argparse
 import AI4Flood.infiltration as infiltration 
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--config",
-    type=str,
-    action="store",
-    help="name of the parameter file",
-    default="config_rain_garden.toml"
-)
-
-parser.add_argument(
-    "--infiltration",
-    action="store_true",
-    help="whether to apply infiltration to the rain garden"
-)
-
-args, _ = parser.parse_known_args()
-
-with open(args.config, "rb") as f:
-    config = tomllib.load(f)
 
 # Check if GPU is available 
 is_gpu = torch.cuda.is_available()

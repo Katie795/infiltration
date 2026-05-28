@@ -184,6 +184,7 @@ class AIRichards(nn.Module):
         self.y = y
 
         #self.g = g
+    '''
 
     def forward(self, uold, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
@@ -199,6 +200,8 @@ class AIRichards(nn.Module):
             # Right hand side of Jacobi iteration
 
             uuj = dirichlet_boundary_condition(uj, u_exact(self.x, self.y, t + dt))
+
+
             div_k_grad_uj = - 0.5 * (self.diff(Kappa(uuj) * uuj) + Kappa(uj) * self.diff(uuj) - uj * self.diff(Kappa(uuj)))
 
             RHS =  self.cmm(theta(uuold) - theta(uuj)) + dt * div_k_grad_uj
@@ -214,6 +217,54 @@ class AIRichards(nn.Module):
             uj.data.copy_(ujplus.data)
 
         return ujplus, i 
+    '''
+    
+    def forward(self, uold, t, dt, imax=100):
+        """Here we use a Jacobi iteration with an L method to solve richard's equation."""
+        L = 2 # lipschitz constant for L method
+        omega = 0.5 # damping parameter
+        uuold   = dirichlet_boundary_condition(uold, u_exact(self.x, self.y, t)) # apply dirichlet bc to u^n-1
+
+        uj = torch.zeros_like(uold, device=device)
+        uj.data.copy_(uold.data) # initial value
+
+        for j in range(imax):
+
+            uuj = dirichlet_boundary_condition(uj, u_exact(self.x, self.y, t + dt))
+            uiplus = torch.zeros_like(uj, device=device) # set up jacobi iteration
+            ui = torch.zeros_like(uj, device=device) # set up jacobi iteration
+            ui.data.copy_(uj.data)
+
+            # Right hand side of Jacobi iteration - fixed
+            b = L * uj + self.cmm(theta(uuold) - theta(uuj)) 
+
+            for i in range(imax):
+                uui = dirichlet_boundary_condition(ui, u_exact(self.x, self.y, t + dt)) # apply dirichlet boundary condition
+
+                div_k_grad_ui = - 0.5 * (self.diff(Kappa(uuj) * uui) + Kappa(uj) * self.diff(uui) - ui * self.diff(Kappa(uuj)))
+                A = L * ui - dt * div_k_grad_ui
+
+                uiplus.data.copy_(ui.data  + omega * (b - A)) # Jacobi iteration
+
+                print(f"L2 difference is {torch.sqrt(torch.mean((uiplus - ui)**2))}")
+
+                assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
+
+                if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-12:
+                    print(f"Inner iterations converged after {i+1} iterations")
+                    break
+
+                ui.data.copy_(uiplus.data)
+
+            if torch.sqrt(torch.mean((uiplus - uj)**2)) <= 1e-12:
+                print(f"Outer iterations converged after {i+1} iterations")
+                break
+
+            #print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
+
+            uj.data.copy_(uiplus.data)
+
+        return uiplus, i 
     
 class AIRichardsPC(nn.Module):
     def __init__(self, w1, wm, bias_initializer, x, y):
