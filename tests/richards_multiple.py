@@ -10,7 +10,7 @@ nx_array = torch.tensor([10, 20, 40, 80, 160]) # numer of elements in each edge 
 dt_array = torch.tensor([0.002, 0.001, 0.0005, 0.00025])              # timestep array
 length = 10                                    # domain is [0, 10] x [0, 10]
 T = 0.002                                      # total length of time
-PC = True                                      # whether to use predictor corrector method
+PC = False                                      # whether to use predictor corrector method
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -66,7 +66,7 @@ with torch.no_grad():
                 model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded).to(device)
 
             while t < T:
-                u_new, nit = model(uold, t, dt, imax=500)
+                u_new, nit = model(uold, t, dt, imax=100)
                 t += dt
                 if t >= T:
                     print("t has reached the final time!")
