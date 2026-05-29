@@ -24,10 +24,9 @@ dx = config["parameters"]["dx"]
 nx = config["parameters"]["nx"]
 ny = config["parameters"]["ny"]
 
-def generate_coords(filename):
+def generate_coords():
     """Generate csv files containing the x and y coordinate data for a uniform grid
-    
-    :args filename: csv file to generate coordintates from"""
+    """
 
     x_coords = np.zeros((ny, nx))
     y_coords = np.zeros((ny, nx))
@@ -36,8 +35,8 @@ def generate_coords(filename):
             x_coords[j][i] = dx * i
             y_coords[j][i] = dx * ny - dx * (j + 1)
 
-    np.savetxt("data/x_coords.csv", x_coords, delimiter=",")
-    np.savetxt("data/y_coords.csv", y_coords, delimiter=",")
+    np.savetxt("../data/x_coords.csv", x_coords, delimiter=",")
+    np.savetxt("../data/y_coords.csv", y_coords, delimiter=",")
     return x_coords, y_coords
 
 def create_xyz_table(z_file, output_file):
@@ -173,10 +172,11 @@ def find_indices_rain_garden(input_file, output_file):
 
 if __name__ == "__main__":
     # Script to find and include the rain garden
-    find_xyz_rain_garden("data/x_coords.csv", "data/y_coords.csv","data/malago_height.csv", "data/rain_garden.csv")
-    find_indices_rain_garden("data/rain_garden.csv", "data/rain_garden_indices.csv")
-    add_rain_garden_to_domain("data/malago_height.csv", "data/rain_garden_indices.csv", "data/full_domain.csv")
+    generate_coords()
+    find_xyz_rain_garden("../data/x_coords.csv", "../data/y_coords.csv","../data/malago_height.csv", "../data/rain_garden.csv")
+    find_indices_rain_garden("../data/rain_garden.csv", "../data/rain_garden_indices.csv")
+    add_rain_garden_to_domain("../data/malago_height.csv", "../data/rain_garden_indices.csv", "../data/full_domain.csv")
 
     #Script to create results for paraview
-    create_xyz_table("data/malago_height.csv", "data/malago_height_xyz.csv") # xyz_table
-    add_rain_garden_to_domain_xyz("data/rain_garden.csv", "data/malago_height_xyz.csv", "data/full_domain_xyz.csv")
+    create_xyz_table("../data/malago_height.csv", "../data/malago_height_xyz.csv") # xyz_table
+    add_rain_garden_to_domain_xyz("../data/rain_garden.csv", "../data/malago_height_xyz.csv", "../data/full_domain_xyz.csv")

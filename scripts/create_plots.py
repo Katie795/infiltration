@@ -51,45 +51,45 @@ with open(args.config, "rb") as f:
     config = tomllib.load(f)
 
 if args.animate:
-    X = np.genfromtxt("data/x_coords.csv", delimiter=',')
-    Y = np.genfromtxt("data/y_coords.csv", delimiter=',')
+    X = np.genfromtxt("../data/x_coords.csv", delimiter=',')
+    Y = np.genfromtxt("../data/y_coords.csv", delimiter=',')
 
-    deepest_arrray = np.genfromtxt(f"results/{args.filename}_{config["parameters"]["nt"]}.csv", delimiter=',')
+    deepest_arrray = np.genfromtxt(f"../results/{args.filename}_{config["parameters"]["nt"]}.csv", delimiter=',')
     deepest = np.max(deepest_arrray)
 
     nfig = int(config["parameters"]["nt"]/ config["parameters"]["n_out"])
 
     for i in range(1, nfig):
-        Z = np.genfromtxt(f"results/{args.filename}_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
+        Z = np.genfromtxt(f"../results/{args.filename}_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
         Z_masked = np.ma.masked_where(Z < 0.00000001, Z)
 
         fig, ax = plt.subplots(1,1, figsize=(20,20))
         height = ax.pcolormesh(X, Y, Z_masked, shading="nearest", vmin=0, vmax=deepest)
         cb = plt.colorbar(height, label="water depth (m)")
-        plt.savefig(f"plots/timestep_{i}.png")
+        plt.savefig(f"../plots/timestep_{i}.png")
         plt.close()
 
 
     images = []
     for i in range(1, nfig):
-        images.append(imageio.imread(f"plots/timestep_{i}.png"))
-        imageio.mimsave("plots/animation.mp4", images)
+        images.append(imageio.imread(f"../plots/timestep_{i}.png"))
+        imageio.mimsave("../plots/animation.mp4", images)
 
     for i in range(1, nfig):
-        os.remove(f"plots/timestep_{i}.png")
+        os.remove(f"../plots/timestep_{i}.png")
 
 if args.animate_comparison:
-    X = np.genfromtxt("data/x_coords.csv", delimiter=',')
-    Y = np.genfromtxt("data/y_coords.csv", delimiter=',')
+    X = np.genfromtxt("../data/x_coords.csv", delimiter=',')
+    Y = np.genfromtxt("../data/y_coords.csv", delimiter=',')
 
-    deepest_arrray = np.genfromtxt(f"results/u_{config["parameters"]["nt"]}.csv", delimiter=',')
+    deepest_arrray = np.genfromtxt(f"../results/u_{config["parameters"]["nt"]}.csv", delimiter=',')
     deepest = np.max(deepest_arrray)
 
     nfig = int(config["parameters"]["nt"]/ config["parameters"]["n_out"])
 
     for i in range(1, nfig):
-        Z1 = np.genfromtxt(f"results/u_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
-        Z2 = np.genfromtxt(f"results/v_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
+        Z1 = np.genfromtxt(f"../results/u_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
+        Z2 = np.genfromtxt(f"../results/v_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
         Z_masked1 = np.ma.masked_where(np.isclose(Z1, 0.), Z1)
         Z_masked2 = np.ma.masked_where(np.isclose(Z1, 0.), Z2)
 
@@ -99,16 +99,16 @@ if args.animate_comparison:
         ax1.set_title(r"Speed in $x$ direction")
         ax2.set_title(r"Speed in $y$ direction")
         cb = plt.colorbar(height2, label="water depth (m)", ax=[ax1, ax2])
-        plt.savefig(f"plots/timestep_{i}.png")
+        plt.savefig(f"../plots/timestep_{i}.png")
         plt.close()
 
     images = []
     for i in range(1, nfig):
-        images.append(imageio.imread(f"plots/timestep_{i}.png"))
-        imageio.mimsave("plots/comparison_animation_uv.mp4", images)
+        images.append(imageio.imread(f"../plots/timestep_{i}.png"))
+        imageio.mimsave("../plots/comparison_animation_uv.mp4", images)
 
     for i in range(1, nfig):
-        os.remove(f"plots/timestep_{i}.png")
+        os.remove(f"../plots/timestep_{i}.png")
 
 
 

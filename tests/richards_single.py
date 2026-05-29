@@ -4,12 +4,14 @@ import torch
 import torch.nn as nn
 from AI4Flood.richards_functions import *
 
+torch.set_default_dtype(torch.float64)
+
 ### Variables that can be changed ###
 nx_array = torch.tensor([10, 20, 40, 80]) # numer of elements in each edge of mesh
 length = 10                                    # domain is [0, 10] x [0, 10]
-T = 0.0005                                     # total length of time
+T = 0.002                                    # total length of time
 dt = 0.0005                                    # timestep
-PC = True                                      # whether to use predictor corrector method
+PC = False                                      # whether to use predictor corrector method
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -81,6 +83,7 @@ with torch.no_grad():
 
 ### convergence plot ###
 print(f"L2_error is {np.array(L2_error_dx)}")
+plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, T)[0,0,:,:].cpu().numpy() - u_exact(x_padded,y_padded, 0)[0,0,:,:].cpu().numpy(), "Exact_solution_error, T - t")
 
 fig, ax = plt.subplots(1,1, figsize=(6,6))
 plt.loglog(1/(nx_array.cpu().numpy()), L2_error_dx, linestyle="dashed", marker="o", label=rf"$\Delta t = {dt}$")

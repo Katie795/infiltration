@@ -4,12 +4,13 @@ import torch
 import torch.nn as nn
 from AI4Flood.richards_functions import *
 
+torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
-nx_array = torch.tensor([10, 20, 40, 80, 160]) # numer of elements in each edge of mesh
-dt_array = torch.tensor([0.002, 0.001, 0.0005, 0.00025])              # timestep array
+nx_array = torch.tensor([10, 20, 40, 80, 160])# numer of elements in each edge of mesh
+dt_array = torch.tensor([0.002, 0.001, 0.0005, 0.00025])            # timestep array
 length = 10                                    # domain is [0, 10] x [0, 10]
-T = 0.002                                      # total length of time
+T = 0.01                                      # total length of time
 PC = False                                      # whether to use predictor corrector method
 
 ### Set up gpu specs ###
@@ -19,7 +20,7 @@ print(f"Running on device {device}")
 
 ### iterates, lists and functions ###
 loss = nn.MSELoss()
-bias_initializer = torch.tensor([0.0], device=device)
+bias_initializer = torch.tensor([0.0], device=device).double()
 L2_error_dx = []
 niterations = []
 
@@ -34,18 +35,18 @@ with torch.no_grad():
 
             generate_coords(nx, nx, name="horung_", length=length)
             generate_padded_coords(nx, nx, name="horung_padded_", length=length)
-            x = torch.tensor(np.genfromtxt("../data/horung_x_coords.csv", delimiter=','))
-            y = torch.tensor(np.genfromtxt("../data/horung_y_coords.csv", delimiter=','))
-            x_padded = torch.tensor(np.genfromtxt("../data/horung_padded_x_coords.csv", delimiter=','))
-            y_padded = torch.tensor(np.genfromtxt("../data/horung_padded_y_coords.csv", delimiter=','))
+            x = torch.tensor(np.genfromtxt("../data/horung_x_coords.csv", delimiter=',')).double()
+            y = torch.tensor(np.genfromtxt("../data/horung_y_coords.csv", delimiter=',')).double()
+            x_padded = torch.tensor(np.genfromtxt("../data/horung_padded_x_coords.csv", delimiter=',')).double()
+            y_padded = torch.tensor(np.genfromtxt("../data/horung_padded_y_coords.csv", delimiter=',')).double()
 
-            u_init = u_exact(x,y,0) # initial condition
+            u_init = u_exact(x,y,0).double() # initial condition
             uj   = u_init.clone()   # 
             uold = u_init.clone()
 
             w1 = torch.tensor([[[[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]],
                         [[-1/3/dx**2], [8/3/dx**2], [-1/3/dx**2]],
-                        [[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]]]], device=device)
+                        [[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]]]], device=device).double()
             
             # Consistant mass matrix 
             #wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
@@ -54,19 +55,20 @@ with torch.no_grad():
             
             wm = torch.tensor([[[[0.0], [0.0], [0.0]],
                             [[0.0], [1.0], [0.0]],
-                            [[0.0], [0.0], [0.0]]]], device=device)
+                            [[0.0], [0.0], [0.0]]]], device=device).double()
 
-            w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
-            wm = torch.reshape(wm,(1,1,3,3))
+            w1 = torch.reshape(w1,(1,1,3,3)).double() # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
+            wm = torch.reshape(wm,(1,1,3,3)).double()
 
-            diag = -8/3/dx**2
+            diag = 8/3/dx**2
+
             if PC == True:
                 model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded).to(device)
             else:
-                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded).to(device)
+                model = AIRichardsNewton(w1, wm, bias_initializer, x_padded, y_padded).to(device).double()
 
             while t < T:
-                u_new, nit = model(uold, t, dt, imax=100)
+                u_new = model(uold, t, dt, imax=100)
                 t += dt
                 if t >= T:
                     print("t has reached the final time!")
@@ -80,7 +82,6 @@ with torch.no_grad():
             #plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
             L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
-            niterations.append(nit)
 
         L2_error.append(L2_error_dx)
 

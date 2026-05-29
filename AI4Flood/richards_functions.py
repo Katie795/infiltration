@@ -65,7 +65,7 @@ def theta(s):
 
     ans = torch.where(s < 0, base - atan_term, base)
 
-    return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
+    return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
 
 
 def theta_prime(s):
@@ -105,7 +105,7 @@ def Kappa(s):
 
     ans = torch.where(s < 0, kappa_left, base)
 
-    return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
+    return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
 
 def Kappa_prime(s):
     """Kappa'(s) in the Horung-Messing test. Needed for Newton's method. Here
@@ -164,7 +164,7 @@ def dirichlet_boundary_condition(u, g):
     # bottom side
     uu[0,0,ny+1,:] = g[0,0,ny+1,:]  # set Dirichlet boundary conditions 
 
-    return uu   
+    return uu.to(torch.float64)
 
 class AIRichards(nn.Module):
     def __init__(self, w1, wm, bias_initializer, x, y):
@@ -184,7 +184,7 @@ class AIRichards(nn.Module):
         self.y = y
 
         #self.g = g
-    '''
+    
 
     def forward(self, uold, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
@@ -225,28 +225,28 @@ class AIRichards(nn.Module):
         omega = 0.5 # damping parameter
         uuold   = dirichlet_boundary_condition(uold, u_exact(self.x, self.y, t)) # apply dirichlet bc to u^n-1
 
-        uj = torch.zeros_like(uold, device=device)
-        uj.data.copy_(uold.data) # initial value
+        uj = uold.clone()
+
+        bc_new = u_exact(self.x, self.y, t + dt)
 
         for j in range(imax):
 
-            uuj = dirichlet_boundary_condition(uj, u_exact(self.x, self.y, t + dt))
+            uuj = dirichlet_boundary_condition(uj, bc_new)
             uiplus = torch.zeros_like(uj, device=device) # set up jacobi iteration
-            ui = torch.zeros_like(uj, device=device) # set up jacobi iteration
-            ui.data.copy_(uj.data)
+            ui = uj.clone()
 
             # Right hand side of Jacobi iteration - fixed
             b = L * uj + self.cmm(theta(uuold) - theta(uuj)) 
 
             for i in range(imax):
-                uui = dirichlet_boundary_condition(ui, u_exact(self.x, self.y, t + dt)) # apply dirichlet boundary condition
+                uui = dirichlet_boundary_condition(ui, bc_new) # apply dirichlet boundary condition
 
                 div_k_grad_ui = - 0.5 * (self.diff(Kappa(uuj) * uui) + Kappa(uj) * self.diff(uui) - ui * self.diff(Kappa(uuj)))
                 A = L * ui - dt * div_k_grad_ui
 
-                uiplus.data.copy_(ui.data  + omega * (b - A)) # Jacobi iteration
+                D = torch.diagonal(A, dim1=2, dim2=3)
 
-                print(f"L2 difference is {torch.sqrt(torch.mean((uiplus - ui)**2))}")
+                uiplus.data.copy_(ui.data  + omega * (b - A) ) # Jacobi iteration
 
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 
@@ -254,17 +254,26 @@ class AIRichards(nn.Module):
                     print(f"Inner iterations converged after {i+1} iterations")
                     break
 
-                ui.data.copy_(uiplus.data)
+                if i == imax - 1:
+                    print(f"Inner iteration has not converged")
+                    break
+
+                ui = uiplus.clone()
 
             if torch.sqrt(torch.mean((uiplus - uj)**2)) <= 1e-12:
                 print(f"Outer iterations converged after {i+1} iterations")
                 break
 
+            if j == imax - 1:
+                print(f"Outer iteration has not converged")
+                break
+
             #print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
 
-            uj.data.copy_(uiplus.data)
+            uj = uiplus.clone()
 
         return uiplus, i 
+    '''
     
 class AIRichardsPC(nn.Module):
     def __init__(self, w1, wm, bias_initializer, x, y):
@@ -323,7 +332,7 @@ class AIRichardsPC(nn.Module):
 
 
 class AIRichardsNewton(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, beta, diag, length=1, nx=10):
+    def __init__(self, w1, wm, bias_initializer, x, y):
         super(AIRichardsNewton, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -333,33 +342,31 @@ class AIRichardsNewton(nn.Module):
 
         self.diff.bias.data = bias_initializer
         self.cmm.bias.data = bias_initializer
-        
-        self.nx = nx
-        self.length = length
-        self.dx = length / nx
-        self.diag = diag
-        self.loss = nn.MSELoss()
 
-    def forward(self, x, y, uold, ujinput, t, dt, imax=10, linmax=50, L=2):
+        self.loss = nn.MSELoss()
+        self.x = x
+        self.y = y
+
+        
+
+    def forward(self, uold, t, dt, imax=2):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
-        uj = ujinput.clone()
-        uuj  = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
+        uj = uold.clone()
+        bc_new = u_exact(self.x, self.y, t + dt)
+        uuj  = dirichlet_boundary_condition(uj, bc_new)
 
         for i in range(imax):
 
             b = theta(uold) - theta(uj)
-            kappa_k  = Kappa(uj)
-            kappa_kk = Kappa(uuj)
 
-            uuj = dirichlet_boundary_condition(uj, u_exact(x,y,t+dt))
+            uuj = dirichlet_boundary_condition(uj, bc_new)
 
-            div_k_grad_uj = - 0.5 * (self.diff(kappa_kk * uuj) + kappa_k * self.diff(uuj) - uj * self.diff(kappa_kk)) 
+            div_k_grad_uj = - 0.5 * (self.diff(Kappa(uuj) * uuj) + Kappa(uj) * self.diff(uuj) - uj * self.diff(Kappa(uuj))) 
 
             A =  dt * div_k_grad_uj 
 
-            F = b - A
-            res_norm = torch.norm(F)
+            res_norm = torch.sqrt(torch.mean((b -A)**2)) 
 
             delta_u = torch.zeros_like(uj)
 
@@ -368,20 +375,20 @@ class AIRichardsNewton(nn.Module):
                 print(f"Newton converged after {i+1} iterations")
                 break
 
-            for _ in range(linmax):
+            for _ in range(imax):
 
                 #delta_bc = dirichlet_boundary_condition(delta_u, torch.zeros_like(uj))
 
                 #K_u = Kappa(uj)  # frozen in Newton step
 
-                div_delta = - 0.5 * (self.diff(kappa_kk * uuj) + kappa_k * self.diff(uuj) - uj * self.diff(kappa_kk)) 
+                div_delta = - 0.5 * (self.diff(Kappa(uuj) * uuj) + Kappa(uj) * self.diff(uuj) - uj * self.diff(Kappa(uuj))) 
 
                 # Approx Jacobian action
                 J_delta = Kappa_prime(uj) * delta_u - dt * div_delta
 
-                res_lin = -F - J_delta
+                res_lin = -(b - A) - J_delta
 
-                delta_u = delta_u + res_lin / (self.diag + 1e-12)
+                delta_u = delta_u + res_lin
 
             uj = uj + delta_u
 
