@@ -8,9 +8,9 @@ torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
 nx_array = torch.tensor([10, 20, 40, 80, 160])# numer of elements in each edge of mesh
-dt_array = torch.tensor([0.002])            # timestep array
+dt_array = torch.tensor([0.0001])            # timestep array
 length = 1                                    # domain is [0, 10] x [0, 10]
-T = 0.002                                      # total length of time
+T = 0.0001                                      # total length of time
 PC = False                                    # whether to use predictor corrector method
 
 ### Set up gpu specs ###
@@ -94,9 +94,9 @@ with torch.no_grad():
             diag = 8/3/dx**2
 
             if PC == True:
-                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g_zero, f).to(device)
+                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g_zero, f, diag).to(device)
             else:
-                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa1, g_zero, f1).to(device).double()
+                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa1, g_zero, f1, diag).to(device).double()
 
             while t < T:
                 u_new = model(uold, t, dt, imax=100)
