@@ -229,11 +229,10 @@ class AIRichards(nn.Module):
 
         return ujplus, i 
     '''
-    '''
     def forward(self, uold, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-        L = 2 # lipschitz constant for L method
-        omega = 0.2 # damping parameter
+        L = 4 # lipschitz constant for L method
+        omega = 0.1 # damping parameter
         #uuold   = dirichlet_boundary_condition(uold, u_exact(self.x, self.y, t)) # apply dirichlet bc to u^n-1
 
         uj = uold.clone()
@@ -258,9 +257,11 @@ class AIRichards(nn.Module):
 
                 D = torch.diagonal(A, dim1=2, dim2=3)
 
-                uiplus.data.copy_(ui.data  + omega * (b - A)) # Jacobi iteration
+                uiplus.data.copy_(ui.data  + omega * (b - A) / D) # Jacobi iteration
+                uiplus = apply_zero_bcs(uiplus)
                 print(f"Error is {torch.sqrt(torch.mean((uiplus - ui)**2))}")
-
+                
+                assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 
                 if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-12:
@@ -288,7 +289,6 @@ class AIRichards(nn.Module):
         return uiplus
     
     '''
-    
     def forward(self, uold, t, dt, imax=100):
         """Simple explicit scheme"""
         L = 2 # lipschitz constant for L method
@@ -309,48 +309,8 @@ class AIRichards(nn.Module):
         #plot_tensor(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], u_new[0][0], "boundary condition 2 ")
 
         return apply_zero_bcs(u_new)
-    
-    '''
-    def forward(self, uold, t, dt, imax=100):
-        """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-        L = 2 # lipschitz constant for L method
-        omega = 0.5 # damping parameter
-        uuold   = dirichlet_boundary_condition(uold, u_exact(self.x, self.y, t)) # apply dirichlet bc to u^n-1
-
-        uj = uold.clone()
-
-        bc_new = u_exact(self.x, self.y, t + dt)
-
-        for j in range(imax):
-
-            uuj = dirichlet_boundary_condition(uj, bc_new)
-            #uiplus = torch.zeros_like(uj, device=device) # set up jacobi iteration
-            #ui = uj.clone()
-
-            # Right hand side of Jacobi iteration - fixed
-            b = L * uj + self.cmm(theta(uuold) - theta(uuj)) 
-
-            uui = dirichlet_boundary_condition(ui, bc_new) # apply dirichlet boundary condition
-
-            div_k_grad_ui = - 0.5 * (self.diff(Kappa(uuj) * uui) + Kappa(uj) * self.diff(uui) - ui * self.diff(Kappa(uuj)))
-            A = L * ui - dt * div_k_grad_ui
-
-            uiplus = torch.linalg.solve(A, b)
-
-            if torch.sqrt(torch.mean((uiplus - uj)**2)) <= 1e-12:
-                print(f"Outer iterations converged after {j+1} iterations")
-                break
-
-            if j == imax - 1:
-                print(f"Outer iteration has not converged")
-                break
-
-            #print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
-
-            uj = uiplus.clone()        
-
-        return uiplus, j     
         '''
+    
     
 class AIRichardsPC(nn.Module):
     def __init__(self, w1, wm, bias_initializer, x, y):

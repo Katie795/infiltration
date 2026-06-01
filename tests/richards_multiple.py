@@ -89,8 +89,6 @@ plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, T)[0,0,:,:].cpu().num
 
 dx = 1/(nx_array.cpu().numpy())
 
-print(L2_error)
-
 ### convergence plot ###
 print(f"L2_error is {np.array(L2_error_dx)}")
 fig, ax = plt.subplots(1,1, figsize=(6,6))

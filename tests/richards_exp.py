@@ -57,7 +57,7 @@ def f(x, y, t):
                            - 3 * torch.sin(torch.pi * x )**2 * torch.sin(torch.pi * y )**2)
      - 1)
     
-    return f2
+    return f
 
 def f1(x, y, t):
     return (2 * torch.pi ** 2 - 1 ) * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
@@ -119,8 +119,6 @@ with torch.no_grad():
 plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, T)[0,0,:,:].cpu().numpy() - u_exact(x_padded,y_padded, 0)[0,0,:,:].cpu().numpy(), "Exact_solution_error, T - t")
 
 dx = 1/(nx_array.cpu().numpy())
-
-print(L2_error)
 
 ### convergence plot ###
 print(f"L2_error is {np.array(L2_error_dx)}")
