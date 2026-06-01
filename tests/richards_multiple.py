@@ -8,9 +8,9 @@ torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
 nx_array = torch.tensor([10, 20, 40, 80, 160])# numer of elements in each edge of mesh
-dt_array = torch.tensor([0.002, 0.001, 0.0005, 0.00025])            # timestep array
+dt_array = torch.tensor([0.001, 0.0005, 0.0002, 0.0001])            # timestep array
 length = 10                                    # domain is [0, 10] x [0, 10]
-T = 0.01                                      # total length of time
+T = 0.001                                      # total length of time
 PC = False                                      # whether to use predictor corrector method
 
 ### Set up gpu specs ###
@@ -63,9 +63,9 @@ with torch.no_grad():
             diag = 8/3/dx**2
 
             if PC == True:
-                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g).to(device)
+                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, u_exact, diag=diag).to(device)
             else:
-                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g).to(device).double()
+                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, u_exact, diag=diag).to(device).double()
 
             while t < T:
                 u_new = model(uold, t, dt, imax=100)
@@ -92,10 +92,10 @@ dx = 1/(nx_array.cpu().numpy())
 ### convergence plot ###
 print(f"L2_error is {np.array(L2_error_dx)}")
 fig, ax = plt.subplots(1,1, figsize=(6,6))
-plt.loglog(dx, L2_error[0], linestyle="dashed", marker="o", label=rf"$\Delta t = {dt_array[0]:.4f}$")
-plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.4f}$")
-plt.loglog(dx, L2_error[2], linestyle="dashed", marker="s", label=rf"$\Delta t = {dt_array[2]:.4f}$")
-plt.loglog(dx, L2_error[3], linestyle="dashed", marker="^", label=rf"$\Delta t = {dt_array[3]:.4f}$")
+plt.loglog(dx, L2_error[0], linestyle="dashed", marker="o", label=rf"$\Delta t = {dt_array[0]:.6f}$")
+plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.6f}$")
+plt.loglog(dx, L2_error[2], linestyle="dashed", marker="s", label=rf"$\Delta t = {dt_array[2]:.6f}$")
+plt.loglog(dx, L2_error[3], linestyle="dashed", marker="^", label=rf"$\Delta t = {dt_array[3]:.6f}$")
 plt.plot(dx, 0.001 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=12)
 ax.set_ylabel(r"$L^2$ error", fontsize=12)
