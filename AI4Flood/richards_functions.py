@@ -222,7 +222,7 @@ class AIRichards(nn.Module):
 
         return ujplus, i 
     '''
-    
+    '''
     def forward(self, uold, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
         L = 2 # lipschitz constant for L method
@@ -279,6 +279,26 @@ class AIRichards(nn.Module):
             uj = uiplus.clone()        
 
         return uiplus
+    
+    '''
+    
+    def forward(self, uold, t, dt, imax=100):
+        """Simple explicit scheme"""
+        L = 2 # lipschitz constant for L method
+        omega = 0.2 # damping parameter
+        #uuold   = dirichlet_boundary_condition(uold, u_exact(self.x, self.y, t)) # apply dirichlet bc to u^n-1
+
+        uj = uold.clone()
+
+        bc_new = self.g(self.x, self.y, t + dt)
+        f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
+        uuj = dirichlet_boundary_condition(uj, bc_new)
+        plot_tensor(self.x, self.y, uuj[0][0], "boundary condition")
+
+        div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj) * uuj) + self.kappa(uj) * self.diff(uuj) - uj * self.diff(self.kappa(uuj)))
+        u_new = uold + dt * div_k_grad_ui + dt * f_new
+
+        return u_new
     
     '''
     def forward(self, uold, t, dt, imax=100):
