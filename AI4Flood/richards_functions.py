@@ -174,7 +174,7 @@ def dirichlet_boundary_condition(u, g):
     return uu.to(torch.float64)
 
 class AIRichards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f):
+    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f, diag):
         super(AIRichards, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -194,7 +194,9 @@ class AIRichards(nn.Module):
         self.kappa = kappa
 
         self.g = g
-        self.f = f    
+        self.f = f
+
+        self.diag = diag    
     '''
 
     def forward(self, uold, t, dt, imax=100):
@@ -231,9 +233,8 @@ class AIRichards(nn.Module):
     '''
     def forward(self, uold, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-        L = 4 # lipschitz constant for L method
+        L = 10 # lipschitz constant for L method
         omega = 0.1 # damping parameter
-        #uuold   = dirichlet_boundary_condition(uold, u_exact(self.x, self.y, t)) # apply dirichlet bc to u^n-1
 
         uj = uold.clone()
 
@@ -242,9 +243,10 @@ class AIRichards(nn.Module):
 
         for j in range(imax):
 
-            uuj = dirichlet_boundary_condition(uj, bc_new)
             uiplus = torch.zeros_like(uj, device=device) # set up jacobi iteration
             ui = uj.clone()
+
+            uuj = dirichlet_boundary_condition(uj, bc_new)
 
             # Right hand side of Jacobi iteration - fixed
             b = L * uj + dt * f_new + (uold - uj) # + self.cmm(self.theta(uuold) - self.theta(uuj))
@@ -252,14 +254,12 @@ class AIRichards(nn.Module):
             for i in range(imax):
                 uui = dirichlet_boundary_condition(ui, bc_new) # apply dirichlet boundary condition
 
-                div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj) * uui) + self.kappa(uj) * self.diff(uui) - ui * self.diff(self.kappa(uuj)))
+                div_k_grad_ui =  - 0.5 * (self.diff(self.kappa(uuj) * uui) + self.kappa(uj) * self.diff(uui) - ui * self.diff(self.kappa(uuj)))
                 A = L * ui - dt * div_k_grad_ui
+                D = self.diag * dt + L
 
-                D = torch.diagonal(A, dim1=2, dim2=3)
-
-                uiplus.data.copy_(ui.data  + omega * (b - A) / D) # Jacobi iteration
+                uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration
                 uiplus = apply_zero_bcs(uiplus)
-                print(f"Error is {torch.sqrt(torch.mean((uiplus - ui)**2))}")
                 
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
@@ -282,34 +282,26 @@ class AIRichards(nn.Module):
                 print(f"Outer iteration has not converged")
                 break
 
-            #print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
-
             uj = uiplus.clone()        
 
         return uiplus
     
     '''
+    
     def forward(self, uold, t, dt, imax=100):
         """Simple explicit scheme"""
-        L = 2 # lipschitz constant for L method
-        omega = 0.2 # damping parameter
-        #uuold   = dirichlet_boundary_condition(uold, u_exact(self.x, self.y, t)) # apply dirichlet bc to u^n-1
 
         uj = uold.clone()
-
-        bc_new = self.g(self.x, self.y, t + dt)
-        f_new = self.f(self.x, self.y, t + dt)[1:-1, 1:-1]
+        bc_new = self.g(self.x, self.y, t + dt)            # boundary conditions
+        f_new = self.f(self.x, self.y, t + dt)[1:-1, 1:-1] # RHS
 
         uuj = dirichlet_boundary_condition(uj, bc_new)
-        #plot_tensor(self.x, self.y, uuj[0][0], "boundary condition")
-
         div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj) * uuj) + self.kappa(uj) * self.diff(uuj) - uj * self.diff(self.kappa(uuj)))
         u_new = uold + dt * div_k_grad_ui + dt * f_new
 
-        #plot_tensor(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], u_new[0][0], "boundary condition 2 ")
-
         return apply_zero_bcs(u_new)
-        '''
+    '''
+        
     
     
 class AIRichardsPC(nn.Module):
