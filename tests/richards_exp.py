@@ -41,6 +41,9 @@ def u_exact(x, y, t):
 
     return torch.unsqueeze(torch.unsqueeze(u_exact, 0), 0)
 
+def g_zero(x, y, t):
+    return torch.unsqueeze(torch.unsqueeze(torch.zeros_like(x), 0), 0)
+
 def f(x, y, t):
     f = - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
         (1 - 2 * torch.pi ** 2) + torch.pi ** 2 * torch.exp(-2 * t ) * (
@@ -91,9 +94,9 @@ with torch.no_grad():
             diag = 8/3/dx**2
 
             if PC == True:
-                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, u_exact, f).to(device)
+                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g_zero, f).to(device)
             else:
-                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa1, u_exact, f1).to(device).double()
+                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa1, g_zero, f1).to(device).double()
 
             while t < T:
                 u_new = model(uold, t, dt, imax=100)
@@ -107,7 +110,7 @@ with torch.no_grad():
 
             plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t)[0,0,:,:].cpu().numpy(), "exact_solution")
             plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-            plot_tensor(x, y, error[0,0,:,:].cpu().numpy(), "model_exact_difference")
+            plot_tensor(x, y, error[0,0,:,:].cpu().numpy(), "model_exact_difference_zerobc")
 
             L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
 
@@ -135,7 +138,7 @@ plt.tight_layout()
 if PC == True:
     plt.savefig(f"../plots/mesh_error_PC")
 else:
-    plt.savefig(f"../plots/mesh_error")
+    plt.savefig(f"../plots/mesh_error_zerobc")
 
 '''
 fig, ax = plt.subplots(1,1, figsize=(6,6))
