@@ -36,7 +36,7 @@ def Kappa1(s):
     return torch.ones_like(s)
 
 def theta(s):
-    return torch.ones_like(s)
+    return s
 
 
 def u_exact(x, y, t):
@@ -122,9 +122,12 @@ with torch.no_grad():
 plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, T)[0,0,:,:].cpu().numpy() - u_exact(x_padded,y_padded, 0)[0,0,:,:].cpu().numpy(), "Exact_solution_error, T - t")
 
 dx = 1/(nx_array.cpu().numpy())
+L2_error = np.array(L2_error)
 
 ### convergence plot ###
 print(f"L2_error is {np.array(L2_error_dx)}")
+
+
 fig, ax = plt.subplots(1,1, figsize=(6,6))
 plt.loglog(dx, L2_error[0], linestyle="dashed", marker="o", label=rf"$\Delta t = {dt_array[0]:.4f}$")
 plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.4f}$")
@@ -142,12 +145,12 @@ else:
     plt.savefig(f"../plots/mesh_error_nokappa")
 
 fig, ax = plt.subplots(1,1, figsize=(6,6))
-plt.loglog(dt_array.cpu().numpy(), L2_error[:][0], linestyle="dashed", marker="o", label=rf"$\Delta x = {dx[0]}$")
-plt.loglog(dt_array.cpu().numpy(), L2_error[:][1], linestyle="dashed", marker="x", label=rf"$\Delta x = {dx[1]}$")
-plt.loglog(dt_array.cpu().numpy(), L2_error[:][2], linestyle="dashed", marker="s", label=rf"$\Delta x = {dx[2]}$")
-plt.loglog(dt_array.cpu().numpy(), L2_error[:][3], linestyle="dashed", marker=".", label=rf"$\Delta x = {dx[3]}$")
-plt.loglog(dt_array.cpu().numpy(), L2_error[:][4], linestyle="dashed", marker=">", label=rf"$\Delta x = {dx[4]}$")
-plt.plot(dx, 0.001 * dt, color="black", linestyle="dotted", label=r"Slope $= -1$" )
+plt.loglog(dt_array.cpu().numpy(), L2_error[:, 0], linestyle="dashed", marker="o", label=rf"$\Delta x = {dx[0]}$")
+plt.loglog(dt_array.cpu().numpy(), L2_error[:, 1], linestyle="dashed", marker="x", label=rf"$\Delta x = {dx[1]}$")
+plt.loglog(dt_array.cpu().numpy(), L2_error[:, 2], linestyle="dashed", marker="s", label=rf"$\Delta x = {dx[2]}$")
+plt.loglog(dt_array.cpu().numpy(), L2_error[:, 3], linestyle="dashed", marker=".", label=rf"$\Delta x = {dx[3]}$")
+plt.loglog(dt_array.cpu().numpy(), L2_error[:, 4], linestyle="dashed", marker=">", label=rf"$\Delta x = {dx[4]}$")
+plt.plot(dt, 0.001 * dt, color="black", linestyle="dotted", label=r"Slope $= -1$" )
 ax.set_xlabel(r"$\Delta t$", fontsize=12)
 ax.set_ylabel(r"$L^2$ error", fontsize=12)
 plt.title(f"Error against time-step, total time T = {T}", fontsize=16)
