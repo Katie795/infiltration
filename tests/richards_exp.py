@@ -110,7 +110,7 @@ with torch.no_grad():
 
             plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t)[0,0,:,:].cpu().numpy(), "exact_solution")
             plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-            plot_tensor(x, y, error[0,0,:,:].cpu().numpy(), "model_exact_difference_zerobc")
+            plot_tensor(x, y, torch.abs(error[0,0,:,:]).cpu().numpy(), "model_exact_difference_zerobc")
 
             L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
 
