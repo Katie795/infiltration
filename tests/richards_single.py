@@ -59,9 +59,9 @@ with torch.no_grad():
         wm = torch.reshape(wm,(1,1,3,3))
 
         if PC == True:
-            model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded).to(device)
+            model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa).to(device)
         else:
-            model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded).to(device)
+            model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa).to(device)
 
         while t < T:
             u_new, nit = model(uold, t, dt, imax=500)

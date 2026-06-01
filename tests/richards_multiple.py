@@ -63,9 +63,9 @@ with torch.no_grad():
             diag = 8/3/dx**2
 
             if PC == True:
-                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded).to(device)
+                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g).to(device)
             else:
-                model = AIRichardsNewton(w1, wm, bias_initializer, x_padded, y_padded).to(device).double()
+                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g).to(device).double()
 
             while t < T:
                 u_new = model(uold, t, dt, imax=100)
@@ -77,9 +77,9 @@ with torch.no_grad():
 
             error = u_new - u_exact(x, y, t) # spatial error
 
-            #plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t)[0,0,:,:].cpu().numpy(), "exact_solution")
-            #plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-            #plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
+            plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t)[0,0,:,:].cpu().numpy(), "exact_solution")
+            plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
+            plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
             L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
 
