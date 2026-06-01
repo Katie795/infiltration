@@ -56,7 +56,6 @@ def f(x, y, t):
     
     return f2
 
-
 def f1(x, y, t):
     return (2 * torch.pi ** 2 - 1 ) * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
 
@@ -124,9 +123,9 @@ print(L2_error)
 print(f"L2_error is {np.array(L2_error_dx)}")
 fig, ax = plt.subplots(1,1, figsize=(6,6))
 plt.loglog(dx, L2_error[0], linestyle="dashed", marker="o", label=rf"$\Delta t = {dt_array[0]:.4f}$")
-plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.4f}$")
-plt.loglog(dx, L2_error[2], linestyle="dashed", marker="s", label=rf"$\Delta t = {dt_array[2]:.4f}$")
-plt.loglog(dx, L2_error[3], linestyle="dashed", marker="^", label=rf"$\Delta t = {dt_array[3]:.4f}$")
+#plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.4f}$")
+#plt.loglog(dx, L2_error[2], linestyle="dashed", marker="s", label=rf"$\Delta t = {dt_array[2]:.4f}$")
+#plt.loglog(dx, L2_error[3], linestyle="dashed", marker="^", label=rf"$\Delta t = {dt_array[3]:.4f}$")
 plt.plot(dx, 0.001 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=12)
 ax.set_ylabel(r"$L^2$ error", fontsize=12)
