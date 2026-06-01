@@ -89,6 +89,13 @@ def theta_prime(s):
                 break
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0).to(torch.float32)
 
+def apply_zero_bcs(u):
+    u_new = u.clone()
+    u_new[0,0,0,:] = torch.zeros_like(u_new[0][0][0][:])
+    u_new[0, 0, -1, :] = torch.zeros_like(u_new[0][0][-1][:] )
+    u_new[0,0, :, 0] = torch.zeros_like(u_new[0][0][:][0] )
+    u_new[0, 0, :,-1] = torch.zeros_like(u_new[0][0][:][-1] )
+    return u_new
 
 
 def Kappa(s):
@@ -291,14 +298,17 @@ class AIRichards(nn.Module):
         uj = uold.clone()
 
         bc_new = self.g(self.x, self.y, t + dt)
-        f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
+        f_new = self.f(self.x, self.y, t + dt)[1:-1, 1:-1]
+
         uuj = dirichlet_boundary_condition(uj, bc_new)
-        plot_tensor(self.x, self.y, uuj[0][0], "boundary condition")
+        #plot_tensor(self.x, self.y, uuj[0][0], "boundary condition")
 
         div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj) * uuj) + self.kappa(uj) * self.diff(uuj) - uj * self.diff(self.kappa(uuj)))
         u_new = uold + dt * div_k_grad_ui + dt * f_new
 
-        return u_new
+        #plot_tensor(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], u_new[0][0], "boundary condition 2 ")
+
+        return apply_zero_bcs(u_new)
     
     '''
     def forward(self, uold, t, dt, imax=100):
