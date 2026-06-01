@@ -8,10 +8,10 @@ torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
 nx_array = torch.tensor([10, 20, 40, 80, 160])# numer of elements in each edge of mesh
-dt_array = torch.tensor([0.0001])            # timestep array
+dt_array = torch.tensor([0.0001, 0.00005, 0.00002, 0.00001])            # timestep array
 length = 1                                    # domain is [0, 10] x [0, 10]
 T = 0.0001                                      # total length of time
-PC = False                                    # whether to use predictor corrector method
+KAPPA = True                                    # whether to include nonlinear kappa
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -35,6 +35,9 @@ def Kappa(s):
 def Kappa1(s):
     return torch.ones_like(s)
 
+def theta(s):
+    return torch.ones_like(s)
+
 
 def u_exact(x, y, t):
     u_exact = torch.exp(-torch.tensor(t)) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
@@ -52,12 +55,12 @@ def f(x, y, t):
         )
     )
 
-    f2 = 2 * torch.pi ** 2 * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
+    f2 = - 2 * torch.pi ** 2 * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
         torch.exp(-2*t) * (torch.sin(torch.pi * x )**2 + torch.sin(torch.pi * y )**2
                            - 3 * torch.sin(torch.pi * x )**2 * torch.sin(torch.pi * y )**2)
-     - 1)
+     - 1) - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
     
-    return f
+    return f2
 
 def f1(x, y, t):
     return (2 * torch.pi ** 2 - 1 ) * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
@@ -93,8 +96,8 @@ with torch.no_grad():
 
             diag = 8/3/dx**2
 
-            if PC == True:
-                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g_zero, f, diag).to(device)
+            if KAPPA == True:
+                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g_zero, f, diag).to(device)
             else:
                 model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa1, g_zero, f1, diag).to(device).double()
 
@@ -124,21 +127,20 @@ dx = 1/(nx_array.cpu().numpy())
 print(f"L2_error is {np.array(L2_error_dx)}")
 fig, ax = plt.subplots(1,1, figsize=(6,6))
 plt.loglog(dx, L2_error[0], linestyle="dashed", marker="o", label=rf"$\Delta t = {dt_array[0]:.4f}$")
-#plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.4f}$")
-#plt.loglog(dx, L2_error[2], linestyle="dashed", marker="s", label=rf"$\Delta t = {dt_array[2]:.4f}$")
-#plt.loglog(dx, L2_error[3], linestyle="dashed", marker="^", label=rf"$\Delta t = {dt_array[3]:.4f}$")
+plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.4f}$")
+plt.loglog(dx, L2_error[2], linestyle="dashed", marker="s", label=rf"$\Delta t = {dt_array[2]:.4f}$")
+plt.loglog(dx, L2_error[3], linestyle="dashed", marker="^", label=rf"$\Delta t = {dt_array[3]:.4f}$")
 plt.plot(dx, 0.001 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=12)
 ax.set_ylabel(r"$L^2$ error", fontsize=12)
 plt.title(f"Error against mesh-size, total time T = {T}", fontsize=16)
 plt.legend(fontsize=12)
 plt.tight_layout()
-if PC == True:
-    plt.savefig(f"../plots/mesh_error_PC")
+if KAPPA == True:
+    plt.savefig(f"../plots/mesh_error_kappa")
 else:
-    plt.savefig(f"../plots/mesh_error_zerobc")
+    plt.savefig(f"../plots/mesh_error_nokappa")
 
-'''
 fig, ax = plt.subplots(1,1, figsize=(6,6))
 plt.loglog(dt_array.cpu().numpy(), L2_error[:][0], linestyle="dashed", marker="o", label=rf"$\Delta x = {dx[0]}$")
 plt.loglog(dt_array.cpu().numpy(), L2_error[:][1], linestyle="dashed", marker="x", label=rf"$\Delta x = {dx[1]}$")
@@ -151,8 +153,11 @@ ax.set_ylabel(r"$L^2$ error", fontsize=12)
 plt.title(f"Error against time-step, total time T = {T}", fontsize=16)
 plt.legend(fontsize=12)
 plt.tight_layout()
-plt.savefig(f"../plots/time_error")
-'''
+if KAPPA == True:
+    plt.savefig(f"../plots/time_error_kappa")
+else:
+    plt.savefig(f"../plots/time_error_nokappa")
+
 #data = {"nx": nx_array.cpu().numpy(), "L2 error": np.array(L2_error_dx), "N iterations": np.array(niterations)}
 #df = pd.DataFrame(data=data)
 

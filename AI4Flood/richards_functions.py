@@ -173,8 +173,24 @@ def dirichlet_boundary_condition(u, g):
 
     return uu.to(torch.float64)
 
+def apply_bcs(u, g):
+    """Applies a boundary condition g to a function u.
+    
+    :args u: original function over nx x ny grid to which the boundary condition is applied
+    :args g: boundary function over nx+2 x ny+2 grid
+    
+    :returns uu: nx+2 x ny+2 function with u in interior cells and g on padded cells."""
+    u_new = u.clone()
+
+    u_new[0,0,0,:] = g[0,0,0,:] # insert u values in the interior 
+    u_new[0,0,:,0] = g[0,0,:,0] # set Dirichlet boundary conditions 
+    u_new[0,0,:,-1] = g[0,0,:,-1] # set Dirichlet boundary conditions
+    u_new[0,0,-1,:] = g[0,0,-1,:]  # set Dirichlet boundary conditions 
+
+    return u_new.to(torch.float64)
+
 class AIRichards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f, diag):
+    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f=0, diag=1):
         super(AIRichards, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -233,13 +249,18 @@ class AIRichards(nn.Module):
     '''
     def forward(self, uold, t, dt, imax=100):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-        L = 10 # lipschitz constant for L method
-        omega = 0.1 # damping parameter
+        L = 2 # lipschitz constant for L method
+        omega = 0.5 # damping parameter
 
         uj = uold.clone()
 
         bc_new = self.g(self.x, self.y, t + dt)
-        f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
+        uuold = dirichlet_boundary_condition(uold, bc_new)
+        
+        if self.f == 0:
+            f_new = torch.tensor(0)
+        else:
+            f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
 
         for j in range(imax):
 
@@ -249,17 +270,17 @@ class AIRichards(nn.Module):
             uuj = dirichlet_boundary_condition(uj, bc_new)
 
             # Right hand side of Jacobi iteration - fixed
-            b = L * uj + dt * f_new + (uold - uj) # + self.cmm(self.theta(uuold) - self.theta(uuj))
+            b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
 
             for i in range(imax):
                 uui = dirichlet_boundary_condition(ui, bc_new) # apply dirichlet boundary condition
 
-                div_k_grad_ui =  - 0.5 * (self.diff(self.kappa(uuj) * uui) + self.kappa(uj) * self.diff(uui) - ui * self.diff(self.kappa(uuj)))
+                div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj) * uui) + self.kappa(uj) * self.diff(uui) - ui * self.diff(self.kappa(uuj)))
                 A = L * ui - dt * div_k_grad_ui
                 D = self.diag * dt + L
 
                 uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration
-                uiplus = apply_zero_bcs(uiplus)
+                uiplus = apply_bcs(uiplus, bc_new[:, :, 1:-1, 1:-1])
                 
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False

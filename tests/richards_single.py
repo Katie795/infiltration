@@ -9,8 +9,8 @@ torch.set_default_dtype(torch.float64)
 ### Variables that can be changed ###
 nx_array = torch.tensor([10, 20, 40, 80]) # numer of elements in each edge of mesh
 length = 10                                    # domain is [0, 10] x [0, 10]
-T = 0.002                                    # total length of time
-dt = 0.0005                                    # timestep
+T = 0.0001                                    # total length of time
+dt = 0.0001                                    # timestep
 PC = False                                      # whether to use predictor corrector method
 
 ### Set up gpu specs ###
@@ -23,9 +23,6 @@ loss = nn.MSELoss()
 bias_initializer = torch.tensor([0.0], device=device)
 L2_error_dx = []
 niterations = []
-
-
-
 
 ### Loop through each mesh, calculate accuracy ###
 with torch.no_grad():
@@ -58,13 +55,15 @@ with torch.no_grad():
         w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
         wm = torch.reshape(wm,(1,1,3,3))
 
+        diag = 8/3/dx**2
+
         if PC == True:
-            model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa).to(device)
+            model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, u_exact, diag=diag).to(device)
         else:
-            model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa).to(device)
+            model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, u_exact, diag=diag).to(device)
 
         while t < T:
-            u_new, nit = model(uold, t, dt, imax=500)
+            u_new = model(uold, t, dt, imax=500)
             t += dt
             if t >= T:
                 print("t has reached the final time!")
@@ -74,10 +73,9 @@ with torch.no_grad():
         L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
 
         # plotting the error
-        niterations.append(nit)
+        #niterations.append(nit)
         error = u_new - u_exact(x, y, t) # spatial error
         plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, dt)[0,0,:,:].cpu().numpy(), "exact_solution")
-        
         plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
         plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
