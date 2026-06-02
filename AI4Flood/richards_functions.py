@@ -190,7 +190,7 @@ def apply_bcs(u, g):
     return u_new.to(torch.float64)
 
 class AIRichards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f=0, diag=1):
+    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f=0, diag=1, ninner=10, nouter=10):
         super(AIRichards, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -214,7 +214,7 @@ class AIRichards(nn.Module):
 
         self.diag = diag    
 
-    def forward(self, uold, t, dt, imax=100):
+    def forward(self, uold, t, dt, ninner=10, nouter=10):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
         L = 2 # lipschitz constant for L method
         omega = 1 # damping parameter
@@ -229,7 +229,7 @@ class AIRichards(nn.Module):
         else:
             f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
 
-        for j in range(imax):
+        for j in range(nouter):
 
             uiplus = torch.zeros_like(uj, device=device) # set up jacobi iteration
             ui = uj.clone()
@@ -239,7 +239,7 @@ class AIRichards(nn.Module):
             # Right hand side of Jacobi iteration - fixed
             b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
 
-            for i in range(imax):
+            for i in range(ninner):
                 uui = dirichlet_boundary_condition(ui, bc_new) # apply dirichlet boundary condition
 
                 div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj) * uui) + self.kappa(uj) * self.diff(uui) - ui * self.diff(self.kappa(uuj)))
@@ -256,7 +256,7 @@ class AIRichards(nn.Module):
                     print(f"Inner iterations converged after {i+1} iterations")
                     break
 
-                if i == imax - 1:
+                if i == ninner - 1:
                     print(f"Inner iteration has not converged")
                     break
 
@@ -266,7 +266,7 @@ class AIRichards(nn.Module):
                 print(f"Outer iterations converged after {i+1} iterations")
                 break
 
-            if j == imax - 1:
+            if j == nouter - 1:
                 print(f"Outer iteration has not converged")
                 break
 
@@ -299,7 +299,7 @@ class AIRichardsPC(nn.Module):
 
         self.diag = diag    
 
-    def forward(self, uold, t, dt, imax=2):
+    def forward(self, uold, t, dt, ninner=1, nouter=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
         L = 5 # lipschitz constant, should be 2.
 
@@ -314,7 +314,7 @@ class AIRichardsPC(nn.Module):
         ujplus = torch.zeros_like(uold, device=device)
         uj = uold.clone()
 
-        for i in range(imax):
+        for i in range(ninner):
             # predictor step
             uuj = dirichlet_boundary_condition(uj, u_exact(self.x, self.y, t + dt))
             # this is like a forward euler scheme
