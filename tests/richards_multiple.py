@@ -8,10 +8,10 @@ torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
 nx_array = torch.tensor([10, 20, 40, 80, 160])# numer of elements in each edge of mesh
-dt_array = torch.tensor([0.0001, 0.00005, 0.00002, 0.00001])            # timestep array
+dt_array = torch.tensor([0.01, 0.005, 0.002, 0.001])            # timestep array
 length = 10                                    # domain is [0, 10] x [0, 10]
-T = 0.0001                                      # total length of time
-PC = False                                      # whether to use predictor corrector method
+T = 0.01                                      # total length of time
+PC = True                                      # whether to use predictor corrector method
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -72,9 +72,9 @@ with torch.no_grad():
 
             error = u_new - u_exact(x, y, t) # spatial error
 
-            plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t)[0,0,:,:].cpu().numpy(), "exact_solution")
-            plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-            plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
+            #plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t)[0,0,:,:].cpu().numpy(), "exact_solution")
+            #plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
+            #plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
             L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
 
@@ -94,7 +94,7 @@ plt.loglog(dx, L2_error[0], linestyle="dashed", marker="o", label=rf"$\Delta t =
 plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.6f}$")
 plt.loglog(dx, L2_error[2], linestyle="dashed", marker="s", label=rf"$\Delta t = {dt_array[2]:.6f}$")
 plt.loglog(dx, L2_error[3], linestyle="dashed", marker="^", label=rf"$\Delta t = {dt_array[3]:.6f}$")
-plt.plot(dx, 0.00001 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+plt.plot(dx, 0.0001 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=12)
 ax.set_ylabel(r"$L^2$ error", fontsize=12)
 plt.title(f"Error against mesh-size, total time T = {T}", fontsize=16)
@@ -115,10 +115,13 @@ plt.loglog(dt_array.cpu().numpy(), L2_error[:,4], linestyle="dashed", marker=">"
 #plt.plot(dt, 0.001 * dt, color="black", linestyle="dotted", label=r"Slope $= -1$" )
 ax.set_xlabel(r"$\Delta t$", fontsize=12)
 ax.set_ylabel(r"$L^2$ error", fontsize=12)
-plt.title(f"Error against time-step, total time T = {T}.png", fontsize=16)
+plt.title(f"Error against time-step, total time T = {T}", fontsize=16)
 plt.legend(fontsize=12)
 plt.tight_layout()
-plt.savefig(f"../plots/time_error_T={T}.png")
+if PC == True:
+    plt.savefig(f"../plots/mesh_error_PC_T={T}.png")
+else:
+    plt.savefig(f"../plots/mesh_error_T={T}.png")
 
 #data = {"nx": nx_array.cpu().numpy(), "L2 error": np.array(L2_error_dx), "N iterations": np.array(niterations)}
 #df = pd.DataFrame(data=data)

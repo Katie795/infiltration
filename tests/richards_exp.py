@@ -12,6 +12,7 @@ dt_array = torch.tensor([0.02, 0.01, 0.005, 0.0025, 0.00125])            # times
 length = 1                                    # domain is [0, 10] x [0, 10]
 T = 0.02                                      # total length of time
 KAPPA = True                                    # whether to include nonlinear kappa
+PC = False
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
