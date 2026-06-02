@@ -322,7 +322,7 @@ class AIRichardsPC(nn.Module):
 
             RHS = self.cmm(theta(uuold) - theta(uuj)) + dt * div_k_grad_uj + dt * f_new
             ujstar =  uj + 1 / L * RHS
-            ujstar = apply_bcs(ujstar)
+            ujstar = apply_bcs(ujstar, bc_new[:, :, 1:-1, 1:-1])
             
             uujstar = dirichlet_boundary_condition(ujstar, u_exact(self.x, self.y,t+dt)) # apply boundary condition
 
@@ -334,13 +334,11 @@ class AIRichardsPC(nn.Module):
 
             RHS_pred = self.cmm(theta(uuold) - theta(uujstar)) + dt * div_k_grad_uj_pred
             ujplus = (uj + 1 / L * RHS_pred).clone()
-            ujplus = apply_bcs(ujplus)
+            ujplus = apply_bcs(ujplus, bc_new[:, :, 1:-1, 1:-1])
             
             if torch.sqrt(torch.mean((ujplus - uj)**2)) <= 1e-12:
                 print(f"Ierations converged after {i+1} iterations")
                 break
-
-            print(f"L2 Difference between uj_plus and u_j is {self.loss(ujplus, uj)}")
 
             uj = ujplus.clone()
 
