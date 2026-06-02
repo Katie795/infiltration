@@ -21,7 +21,6 @@ print(f"Running on device {device}")
 ### iterates, lists and functions ###
 loss = nn.MSELoss()
 bias_initializer = torch.tensor([0.0], device=device).double()
-L2_error_dx = []
 niterations = []
 
 L2_error = []
@@ -47,11 +46,7 @@ with torch.no_grad():
             w1 = torch.tensor([[[[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]],
                         [[-1/3/dx**2], [8/3/dx**2], [-1/3/dx**2]],
                         [[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]]]], device=device).double()
-            
-            # Consistant mass matrix 
-            #wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
-            #                    [[0.11] ,  [0.44], [0.11]],
-            #                    [[0.028], [0.11] , [0.028]]]], device=device)
+        
             
             wm = torch.tensor([[[[0.0], [0.0], [0.0]],
                             [[0.0], [1.0], [0.0]],
@@ -90,6 +85,8 @@ plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, T)[0,0,:,:].cpu().num
 dx = 1/(nx_array.cpu().numpy())
 L2_error = np.array(L2_error)
 
+print(L2_error)
+
 ### convergence plot ###
 print(f"L2_error is {np.array(L2_error_dx)}")
 fig, ax = plt.subplots(1,1, figsize=(6,6))
@@ -97,7 +94,7 @@ plt.loglog(dx, L2_error[0], linestyle="dashed", marker="o", label=rf"$\Delta t =
 plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.6f}$")
 plt.loglog(dx, L2_error[2], linestyle="dashed", marker="s", label=rf"$\Delta t = {dt_array[2]:.6f}$")
 plt.loglog(dx, L2_error[3], linestyle="dashed", marker="^", label=rf"$\Delta t = {dt_array[3]:.6f}$")
-plt.plot(dx, 0.001 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+plt.plot(dx, 0.001 * dx ** 3, color="black", linestyle="dotted", label=r"Slope $= -3$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=12)
 ax.set_ylabel(r"$L^2$ error", fontsize=12)
 plt.title(f"Error against mesh-size, total time T = {T}", fontsize=16)

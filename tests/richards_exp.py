@@ -8,9 +8,9 @@ torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
 nx_array = torch.tensor([10, 20, 40, 80, 160])# numer of elements in each edge of mesh
-dt_array = torch.tensor([0.0001, 0.00005, 0.00002, 0.00001])            # timestep array
+dt_array = torch.tensor([0.02, 0.01, 0.005, 0.0025, 0.00125])            # timestep array
 length = 1                                    # domain is [0, 10] x [0, 10]
-T = 0.0001                                      # total length of time
+T = 0.02                                      # total length of time
 KAPPA = True                                    # whether to include nonlinear kappa
 
 ### Set up gpu specs ###
@@ -111,15 +111,15 @@ with torch.no_grad():
 
             error = u_new - u_exact(x, y, t) # spatial error
 
-            plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t)[0,0,:,:].cpu().numpy(), "exact_solution")
-            plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-            plot_tensor(x, y, torch.abs(error[0,0,:,:]).cpu().numpy(), "model_exact_difference_zerobc")
+            #plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, t)[0,0,:,:].cpu().numpy(), "exact_solution")
+            #plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
+            #plot_tensor(x, y, torch.abs(error[0,0,:,:]).cpu().numpy(), "model_exact_difference_zerobc")
 
             L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
 
         L2_error.append(L2_error_dx)
 
-plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, T)[0,0,:,:].cpu().numpy() - u_exact(x_padded,y_padded, 0)[0,0,:,:].cpu().numpy(), "Exact_solution_error, T - t")
+#plot_tensor(x_padded, y_padded, u_exact(x_padded,y_padded, T)[0,0,:,:].cpu().numpy() - u_exact(x_padded,y_padded, 0)[0,0,:,:].cpu().numpy(), "Exact_solution_error, T - t")
 
 dx = 1/(nx_array.cpu().numpy())
 L2_error = np.array(L2_error)
@@ -133,7 +133,7 @@ plt.loglog(dx, L2_error[0], linestyle="dashed", marker="o", label=rf"$\Delta t =
 plt.loglog(dx, L2_error[1], linestyle="dashed", marker="x", label=rf"$\Delta t = {dt_array[1]:.4f}$")
 plt.loglog(dx, L2_error[2], linestyle="dashed", marker="s", label=rf"$\Delta t = {dt_array[2]:.4f}$")
 plt.loglog(dx, L2_error[3], linestyle="dashed", marker="^", label=rf"$\Delta t = {dt_array[3]:.4f}$")
-plt.plot(dx, 0.001 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+plt.plot(dx, 0.001 * dx ** 3, color="black", linestyle="dotted", label=r"Slope $= -3$" )
 ax.set_xlabel(r"$\Delta x$", fontsize=12)
 ax.set_ylabel(r"$L^2$ error", fontsize=12)
 plt.title(f"Error against mesh-size, total time T = {T}", fontsize=16)
