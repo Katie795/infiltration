@@ -1,21 +1,15 @@
-'''
- Amin Nadimy, Boyang Chen, Claire Heaney, Christopher Pain
- Department of Earth Science and Engineering
- Imperial College London
-
- amin.nadimy19@imperial.ac.uk
-
- modified by Katie MacKenzie 
- km2560@bath.ac.uk
+''' Infiltration of Malago Road rain garden
+Katie MacKenzie 
+km2560@bath.ac.uk
 '''
 #-- Import general libraries
 import numpy as np 
 import time 
 import torch
-from AI4Flood.SWE import AI4SWE
 import tomllib
 import argparse
-import AI4Flood.infiltration as infiltration 
+from AI4Flood.richards_functions import generate_rectangular_coords, generate_rectangular_padded_coords, theta_malago, kappa_malago, AIRichards
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -24,12 +18,6 @@ parser.add_argument(
     action="store",
     help="name of the parameter file",
     default="config.toml"
-)
-
-parser.add_argument(
-    "--infiltration",
-    action="store_true",
-    help="whether to apply infiltration to the rain garden"
 )
 
 args, _ = parser.parse_known_args()
@@ -49,115 +37,56 @@ print(f"Running on device {device}")
 
 dt = torch.tensor([config["parameters"]["dt"]], device=device) # timestep (s)
 dx = torch.tensor([config["parameters"]["dx"]], device=device) # spatial discretisation (m) (here it is 20cm)
-nx = torch.tensor([config["parameters"]["nx"]], device=device) # number of points in x direction
+#nx = #torch.tensor([config["parameters"]["nx"]], device=device) # number of points in x direction
 ny = torch.tensor([config["parameters"]["ny"]], device=device) # number of points in y direction
-CFL = np.sqrt(9.81*4)*dt/dx # for gravity waves with wavenumber 0.25
-print('Grid size:', dx,'CFL:', CFL)
+length = 4   # 4m length
+depth  = 1.2 # 1.2m depth
+nx = 400 # 1cm gridspace
+ny = 120 # 1cm gridspace
+dt = 0.01
+T = 1
+save_fig = True
+
+generate_rectangular_coords(nx, nx, name="infiltration_", x_length=length, y_length=depth)
+generate_rectangular_padded_coords(nx, nx, name="infiltration_padded_", x_length=length, y_length=depth)
+x = torch.tensor(np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')).double()
+y = torch.tensor(np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')).double()
+x_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_x_coords.csv", delimiter=',')).double()
+y_padded = torch.tensor(np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')).double()
+
+
 # # # ################################### # # #
 # # # ######    Linear Filter      ###### # # #
 # # # ################################### # # #
 bias_initializer = torch.tensor([0.0], device=device)
 # Isotropic Laplacian  
-# These are the weights for the convolutions for the neural network
-# these are the same for uniform grids
-# tensor is of shape (batchsize, nkernels, pixels in rows, pixels in columns)
-# tensor is of shape (batchsize, channels out, rows, columns)
-# These are related to finite element basis functions
 w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
                     [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
                     [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
-# Gradient in x 
-w2 = torch.tensor([[[[1/(12*dx)], [0.0], [-1/(12*dx)]],
-                    [[1/(3*dx)] , [0.0], [-1/(3*dx)]] ,
-                    [[1/(12*dx)], [0.0], [-1/(12*dx)]]]], device=device)
-# Gradient in y 
-w3 = torch.tensor([[[[-1/(12*dx)], [-1/(3*dx)], [-1/(12*dx)]],
-                    [[0.0]       , [0.0]      , [0.0]]       ,
-                    [[1/(12*dx)] , [1/(3*dx)] , [1/(12*dx)]]]], device=device)
-# Consistant mass matrix 
-wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
-                    [[0.11] ,  [0.44], [0.11]],
-                    [[0.028], [0.11] , [0.028]]]], device=device)
+# mass matrix
+wm = torch.tensor([[[[0.0], [0.0], [0.0]],
+                            [[0.0], [1.0], [0.0]],
+                            [[0.0], [0.0], [0.0]]]], device=device).double()
 
 w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
-w2 = torch.reshape(w2,(1,1,3,3))
-w3 = torch.reshape(w3,(1,1,3,3))
 wm = torch.reshape(wm,(1,1,3,3))
 
-#######################################################
-################# Numerical parameters ################
-ntime = config["parameters"]["nt"]    # Time steps
-n_out = config["parameters"]["n_out"] # How often to save the results 
-nrestart = 0                # Last time step for restart
-ctime_old = 0               # Last ctime for restart
-mgsolver = True             # Multigrid solver for non-hydrostatic pressure 
-nsafe = 0.5                 # Continuty equation residuals
-ctime = 0                   # Initialise ctime   
-save_fig = True             # Save results
-Restart = False             # Restart
-eplsion_k = 1e-04           # Stablisation factor in Petrov-Galerkin for velocity
-eplsion_eta = 1e-04         # Stablisation factor in Petrov-Galerkin for height
-beta = 4                    # diagonal factor in mass term
-real_time = torch.tensor([0.0], device=device)
-istep = 0
-
-# # # ################################### # # #
-# # # ######   Physical parameters    ### # # #
-# # # ################################### # # #
-g_x = 0;g_y = 0;g_z = 9.81  # Gravity acceleration (m/s2) 
-rho = 1/g_z                 # Resulting density
 diag = -np.array(w1.cpu())[0,0,1,1]
 
 # # # ################################### # # #
 # # # ######   Create field (tensor)  ### # # #
 # # # ################################### # # #
-input_shape = (1, 1, ny, nx)
-values_u     = torch.zeros(input_shape, device=device) # u
-values_v     = torch.zeros(input_shape, device=device) # v
-a_u          = torch.zeros(input_shape, device=device)
-a_v          = torch.zeros(input_shape, device=device)
-b_u          = torch.zeros(input_shape, device=device)
-b_v          = torch.zeros(input_shape, device=device)
-c_u          = torch.zeros(input_shape, device=device)
-c_v          = torch.zeros(input_shape, device=device)
-eta1         = torch.zeros(input_shape, device=device)
-eta2         = torch.zeros(input_shape, device=device)
-values_hh    = torch.zeros(input_shape, device=device)
-dif_values_h = torch.zeros(input_shape, device=device)
-values_h_old = torch.zeros(input_shape, device=device)
-sigma_q      = torch.zeros(input_shape, device=device)
-k_u          = torch.zeros(input_shape, device=device)
-k_v          = torch.zeros(input_shape, device=device)
-k_x          = torch.zeros(input_shape, device=device)
-k_y          = torch.zeros(input_shape, device=device)
-b            = torch.zeros(input_shape, device=device)
-# Padding
-input_shape_pd = (1, 1, ny + 2, nx + 2)
-values_uu     = torch.zeros(input_shape_pd, device=device) # u boundary condition
-values_vv     = torch.zeros(input_shape_pd, device=device) # v boundary condition
-b_uu          = torch.zeros(input_shape_pd, device=device)
-b_vv          = torch.zeros(input_shape_pd, device=device)
-eta1_p        = torch.zeros(input_shape_pd, device=device)
-dif_values_hh = torch.zeros(input_shape_pd, device=device)
-values_hhp    = torch.zeros(input_shape_pd, device=device)
-values_hp     = torch.zeros(input_shape_pd, device=device)
-k_uu          = torch.zeros(input_shape_pd, device=device)
-k_vv          = torch.zeros(input_shape_pd, device=device)
-# stablisation factor
-k1 = torch.ones(input_shape, device=device)*eplsion_eta
-k2 = torch.zeros(input_shape, device=device)    
-k3 = torch.ones(input_shape, device=device)*dx**2*0.5/dt # for transient problem
+
 #######################################################
 print('============== Numerical parameters ===============')
-print('Mesh resolution:', values_v.shape)
-print('Time step:', ntime)
-print('Initial time:', ctime)
+print('Time step:', dt)
+print('Initial time:', 0)
 print('Diagonal component:', diag)
 #######################################################
 # # # ################################### # # #
 # # # #######   Initialisation ########## # # #
 # # # ################################### # # #
-
+input_shape = (1, 1, ny, nx)
 values_h = torch.zeros(input_shape, device=device)
 values_H = torch.zeros(input_shape, device=device)
 
@@ -169,7 +98,6 @@ values_H[0,0,:,:] = torch.tensor(mesh, device=device)
 
 # defining the source term
 source_h = torch.zeros(input_shape, device=device)
-
 
 # Transfer array into tensor
 values_h = values_H
@@ -185,40 +113,22 @@ def get_source(time):
     elif time >= 100:
         source_h[0,0, :, :] = 0
     
-model = AI4SWE(w1, w2, w3, wm, bias_initializer, dx, beta, diag).to(device)
+model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta_malago, kappa_malago, boundary_conditions, diag=diag).to(device)
 
+t = 0
+i = 0
 start = time.time()
 with torch.no_grad():
 
-    for itime in range(1, ntime+1):
-
-        get_source(real_time)
-
-        for t in range(2):
-            [values_u, values_v, values_h, values_hh, dif_values_h, sigma_q] = model(values_u, values_uu, values_v, values_vv, values_H, values_h, 
-                    values_hp, b_u, b_uu, b_v, b_vv, dt, rho, k1, k2, k3, eta1_p, source_h, dif_values_h, dif_values_hh, values_hh, values_hhp) # output          
+    while t < T:
         
-        if args.infiltration:
-            values_h = infiltration.darcy(values_h, values_h_initital)
-            eta_filename = "eta_infiltration"
-        else:
-            eta_filename = "eta_impervious"
-        
-        real_time = real_time + dt
-        istep +=1
+        u_new = model(u_old, t, dt, ninner=50, nouter=50)
+        t += dt
+        i += 1
 
-        if np.max(np.abs(values_hh.cpu().detach().numpy())) > 10.0:
-            print('Not converged !!!!!!')
-            break
+        if save_fig == True:
+            np.savetxt(f"results/u_{i}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 
-        print(f'Time step: {itime}, height correction: {np.max(values_hh.cpu().detach().numpy())}, time = {real_time.item():.2f}s')
-        print(f"Maximum depth is {np.max((values_h - values_h_initital).cpu().detach().numpy())}m") 
-
-        if save_fig == True and itime % n_out == 0:
-            np.savetxt(f"results/{eta_filename}_{itime}.csv", (values_h - values_h_initital).cpu().detach().numpy()[0,0,:,:], delimiter=",")
-            np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
-            np.savetxt(f"results/u_{itime}.csv", (values_u).cpu().detach().numpy()[0,0,:,:], delimiter=",")
-            np.savetxt(f"results/v_{itime}.csv", (values_v).cpu().detach().numpy()[0,0,:,:], delimiter=",")
             
     end = time.time()
     print(f'Time to run simulation:{end-start}s')
