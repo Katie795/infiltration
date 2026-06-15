@@ -8,7 +8,7 @@ import time
 import torch
 import tomllib
 import argparse
-from AI4Flood.richards_functions import generate_rectangular_coords, generate_rectangular_padded_coords, theta_malago, kappa_malago, AIRichards
+from AI4Flood.richards_functions import *
 
 
 parser = argparse.ArgumentParser()
@@ -43,7 +43,7 @@ length = 4   # 4m length
 depth  = 1.2 # 1.2m depth
 nx = 400 # 1cm gridspace
 ny = 120 # 1cm gridspace
-dt = 0.01
+dt = 0.1
 T = 1
 save_fig = True
 
@@ -52,7 +52,7 @@ generate_rectangular_padded_coords(nx, nx, name="infiltration_padded_", x_length
 x = torch.tensor(np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')).double()
 y = torch.tensor(np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')).double()
 x_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_x_coords.csv", delimiter=',')).double()
-y_padded = torch.tensor(np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')).double()
+y_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_y_coords.csv", delimiter=',')).double()
 
 
 # # # ################################### # # #
@@ -87,23 +87,8 @@ print('Diagonal component:', diag)
 # # # #######   Initialisation ########## # # #
 # # # ################################### # # #
 input_shape = (1, 1, ny, nx)
-values_h = torch.zeros(input_shape, device=device)
-values_H = torch.zeros(input_shape, device=device)
 
-with open('data/full_domain.csv', 'r') as file:
-    mesh = np.genfromtxt(file, delimiter=',')
-
-mesh = mesh.reshape(ny,nx)
-values_H[0,0,:,:] = torch.tensor(mesh, device=device)
-
-# defining the source term
-source_h = torch.zeros(input_shape, device=device)
-
-# Transfer array into tensor
-values_h = values_H
-values_h_initital = values_H
-values_H = - values_H ## this is used for info about the bathymetry of the surface! Values_H is fixed!
-
+'''
 def get_source(time):
     # here time is in seconds
     if time < 100:
@@ -112,7 +97,23 @@ def get_source(time):
         source_h[0,0, :, :] = 0.00278 * dt # source times timestep
     elif time >= 100:
         source_h[0,0, :, :] = 0
-    
+'''  
+
+def boundary_conditions(x, y, t=1):
+    d_max = 1 
+    d_min = 0
+    x_max = torch.max(x)
+
+    tensor = d_max * (x_max - x) / x_max
+    return torch.unsqueeze(torch.unsqueeze(tensor, 0), 0)
+
+plot_tensor(x_padded, y_padded, boundary_conditions(x_padded, y_padded), "malago_dirichlet_boundary_conditions")
+
+u_old = 0.01 * torch.unsqueeze(torch.unsqueeze(torch.ones_like(x), 0), 0)
+
+bcs = apply_malago_bcs(u_old, torch.unsqueeze(torch.unsqueeze(boundary_conditions(x_padded, y_padded), 0), 0))
+plot_tensor_infiltration(x_padded, y_padded, bcs[0][0], "malago_boundary_conditions")
+
 model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta_malago, kappa_malago, boundary_conditions, diag=diag).to(device)
 
 t = 0
@@ -127,7 +128,8 @@ with torch.no_grad():
         i += 1
 
         if save_fig == True:
-            np.savetxt(f"results/u_{i}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            plot_tensor_infiltration(x_padded, y_padded, u_new, f"results/malago_{i}")
+            #np.savetxt(f"results/u_{i}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 
             
     end = time.time()
