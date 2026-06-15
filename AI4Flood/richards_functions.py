@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn as nn
+from matplotlib.colors import BoundaryNorm
+from matplotlib.ticker import MaxNLocator
 
 is_gpu = torch.cuda.is_available()
 device = torch.device("cuda:0" if is_gpu else "cpu")
@@ -9,6 +11,16 @@ device = torch.device("cuda:0" if is_gpu else "cpu")
 def plot_tensor(x, y, tensor, name):
     fig, ax = plt.subplots(1,1, figsize=(10,10))
     height = ax.pcolormesh(x, y, tensor)
+    cb = plt.colorbar(height, label=name, ax=ax)
+    plt.title(name)
+    plt.savefig(f"../plots/{name}")
+
+def plot_tensor_infiltration(x, y, tensor, name):
+    fig, ax = plt.subplots(1,1, figsize=(10,10))
+    levels = MaxNLocator(nbins=15).tick_values(tensor.min(), tensor.max())
+    cmap = plt.colormaps['PiYG']
+    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    height = ax.pcolormesh(x, y, tensor, cmap=cmap, norm=norm)
     cb = plt.colorbar(height, label=name, ax=ax)
     plt.title(name)
     plt.savefig(f"../plots/{name}")
@@ -31,6 +43,47 @@ def generate_coords(nx, ny, name="", length=1):
     np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
 
     return x_coords, y_coords
+
+def generate_rectangular_coords(nx, ny, name="", x_length=1, y_length=1):
+    """Generate csv files containing the x and y coordinate data for a uniform grid
+    
+    :args filename: csv file to generate coordintates from"""
+
+    dx = x_length / nx
+    dy = y_length / ny
+
+    x_coords = np.zeros((ny+1, nx+1))
+    y_coords = np.zeros((ny+1, nx+1))
+    for i in range(nx+1):
+        for j in range(ny+1):
+            x_coords[j][i] = dx * i
+            y_coords[j][i] = dy * ny - dy * j
+
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
+
+    return x_coords, y_coords
+
+def generate_rectangular_padded_coords(nx, ny, name="", x_length=1, y_length=1):
+    """Generate csv files containing the x and y coordinate data for a uniform grid
+    
+    :args filename: csv file to generate coordintates from"""
+
+    dx = x_length / nx
+    dy = y_length / ny
+
+    x_coords = np.zeros((ny+3, nx+3))
+    y_coords = np.zeros((ny+3, nx+3))
+    for i in range(nx+3):
+        for j in range(ny+3):
+            x_coords[j][i] = dx * (i - 1)
+            y_coords[j][i] = dy * ny - dy * (j-1) 
+
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
+
+    return x_coords, y_coords
+
 
 def generate_padded_coords(nx, ny, name="", length=1):
     """Generate csv files containing the x and y coordinate data for a uniform grid
@@ -180,17 +233,45 @@ def apply_bcs(u, g):
     :args g: boundary function over nx+2 x ny+2 grid
     
     :returns uu: nx+2 x ny+2 function with u in interior cells and g on padded cells."""
-    u_new = u.clone()
+    #u_new = u.clone()
 
-    u_new[0,0,0,:] = g[0,0,0,:] # insert u values in the interior 
-    u_new[0,0,:,0] = g[0,0,:,0] # set Dirichlet boundary conditions 
-    u_new[0,0,:,-1] = g[0,0,:,-1] # set Dirichlet boundary conditions
-    u_new[0,0,-1,:] = g[0,0,-1,:]  # set Dirichlet boundary conditions 
+    u_new = torch.zeros_like(g)
+    u_new[0,0,1:-1, 1:-1] = u
+
+
+    u_new[0,0,0,:] = g[0,0,0,:] # top
+    u_new[0,0,:,0] = g[0,0,:,0] # left
+    u_new[0,0,:,-1] = g[0,0,:,-1] # right
+    u_new[0,0,-1,:] = g[0,0,-1,:]  # bottom
+
+    return u_new.to(torch.float64)
+
+def apply_malago_bcs(u, g, q=1):
+    """Applies a boundary condition g to a function u.
+    
+    :args u: original function over nx x ny grid to which the boundary condition is applied
+    :args g: boundary function over nx+2 x ny+2 grid
+    
+    :returns uu: nx+2 x ny+2 function"""
+
+    u_new = torch.zeros_like(g)
+
+    u_new[0,0,1:-1, 1:-1] = u
+
+    cut1 = 177
+    cut2 = 233
+
+    u_new[0,0,0,:] = g[0,0,0,:]                # top dirichlet
+    u_new[0,0,:,0]       = u_new[0,0,:,1]      # homogeneous neumann  
+    u_new[0,0,:,-1]      = u_new[0,0,:,-2]     # homogeneous neumann
+    u_new[0,0,-1, :cut1] = u_new[0,0,-2,:cut1] # homogeneous neumann
+    u_new[0,0,-1, cut2:] = u_new[0,0,-1,cut2:] # homogeneous neumann
+    u_new[0,0,-1, cut1:cut1] = q * torch.ones_like(u_new[0,0,-1, cut1:cut1])
 
     return u_new.to(torch.float64)
 
 class AIRichards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f=0, diag=1, ninner=10, nouter=10):
+    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f=0, diag=1):
         super(AIRichards, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -213,6 +294,7 @@ class AIRichards(nn.Module):
         self.f = f
 
         self.diag = diag    
+        # TODO: make the boundary conditions variable i.e. not problem dependent
 
     def forward(self, uold, t, dt, ninner=10, nouter=10):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
@@ -222,7 +304,7 @@ class AIRichards(nn.Module):
         uj = uold.clone()
 
         bc_new = self.g(self.x, self.y, t + dt)
-        uuold = dirichlet_boundary_condition(uold, bc_new)
+        uuold = apply_malago_bcs(uold, bc_new)
         
         if self.f == 0:
             f_new = torch.tensor(0)
@@ -234,20 +316,20 @@ class AIRichards(nn.Module):
             uiplus = torch.zeros_like(uj, device=device) # set up jacobi iteration
             ui = uj.clone()
 
-            uuj = dirichlet_boundary_condition(uj, bc_new)
+            uuj = apply_malago_bcs(uj, bc_new)
 
             # Right hand side of Jacobi iteration - fixed
             b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
 
             for i in range(ninner):
-                uui = dirichlet_boundary_condition(ui, bc_new) # apply dirichlet boundary condition
+                uui = apply_malago_bcs(ui, bc_new) # apply dirichlet boundary condition
 
                 div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj) * uui) + self.kappa(uj) * self.diff(uui) - ui * self.diff(self.kappa(uuj)))
                 A = L * ui - dt * div_k_grad_ui
                 D = self.diag * dt + L
 
                 uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration
-                uiplus = apply_bcs(uiplus, bc_new[:, :, 1:-1, 1:-1])
+                uuiplus = apply_bcs(uiplus, bc_new)
                 
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
@@ -407,6 +489,23 @@ class AIRichardsNewton(nn.Module):
             uj = uj + delta_u
 
         return uj
+
+def theta_malago(u):
+    alpha = 1.5162
+    n = 1.8313
+    m = (n - 1) / n
+    theta1 = (1 / (1 + (- alpha * u) ** n)) ** m
+    ans = torch.where(u < 0, theta1, 1)
+    return ans
+
+def kappa_malago(u):
+    n = 1.8313
+    kappa_s = 0.05
+    m = (n - 1) / n
+    kappa1 = theta_malago(u) ** 0.5 * (1 - (1 - theta_malago(u) ** (1 / m)) ** (1 / m)) ** 2
+    ans = kappa_s * torch.where(u < 0, kappa1, 1)
+    return ans
+
 
 
 if __name__ == "__main__":
