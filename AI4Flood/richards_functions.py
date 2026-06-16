@@ -16,11 +16,11 @@ def plot_tensor(x, y, tensor, name):
     plt.savefig(f"../plots/{name}")
 
 def plot_tensor_infiltration(x, y, tensor, name):
-    fig, ax = plt.subplots(1,1, figsize=(10,10))
+    fig, ax = plt.subplots(1,1, figsize=(16,4.8))
     levels = MaxNLocator(nbins=15).tick_values(tensor.min(), tensor.max())
     cmap = plt.colormaps['PiYG']
-    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-    height = ax.pcolormesh(x, y, tensor, cmap=cmap, norm=norm)
+    #norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    height = ax.pcolormesh(x, y, tensor, cmap=cmap)
     cb = plt.colorbar(height, label=name, ax=ax)
     plt.title(name)
     plt.savefig(f"../plots/{name}")
@@ -128,19 +128,13 @@ def theta_prime(s):
     
     :args s: input where s = x - y - t
     """
-    ans = torch.zeros_like(s, device=device)
-    news = s[0][0]
+    s = s[0, 0]  # still assumes (1,1,n,n)
 
-    for i in range(news[0]):
-        for j in range(len(news[0])):
-            if news[i][j] < 0:
-                ans[i][j] =  - 4 * torch.atan(news[i][j])/ (news[i][j]**2 + 1)
-            elif news[i][j] >= 0:
-                ans[i][j] = 0
-            else:
-                print("Error in the theta prime calculation")
-                break
-    return torch.unsqueeze(torch.unsqueeze(ans, 0),0).to(torch.float32)
+    base = 0
+    theta_left = - 4 * torch.atan(s)/ (s**2 + 1)
+    ans = torch.where(s < 0, theta_left, base)
+
+    return torch.unsqueeze(torch.unsqueeze(ans, 0),0).to(torch.float64)
 
 def apply_zero_bcs(u):
     u_new = u.clone()
@@ -161,7 +155,7 @@ def Kappa(s):
     s = s[0, 0]
 
     base = 2.0
-    kappa_left = 2.0 / (1.0 + s**2)
+    kappa_left = 2.0 / (1.0 + s ** 2) 
 
     ans = torch.where(s < 0, kappa_left, base)
 
@@ -181,7 +175,7 @@ def Kappa_prime(s):
 
     ans = torch.where(s < 0, kappa_prime_left, base)
 
-    return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
+    return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
 
 def u_exact(x, y, t):
     """u_exact in the Horung-Messing test.  Here
@@ -199,7 +193,7 @@ def u_exact(x, y, t):
 
     ans = torch.where(s < 0, left, right)
 
-    return ans.unsqueeze(0).unsqueeze(0).to(torch.float32)
+    return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
 
 def dirichlet_boundary_condition(u, g):
     """Applies a boundary condition g to a function u.
@@ -246,7 +240,7 @@ def apply_bcs(u, g):
 
     return u_new.to(torch.float64)
 
-def apply_malago_bcs(u, g, q=1):
+def apply_malago_bcs(u, g, q=2):
     """Applies a boundary condition g to a function u.
     
     :args u: original function over nx x ny grid to which the boundary condition is applied
@@ -266,12 +260,12 @@ def apply_malago_bcs(u, g, q=1):
     u_new[0,0,:,-1]      = u_new[0,0,:,-2]     # homogeneous neumann
     u_new[0,0,-1, :cut1] = u_new[0,0,-2,:cut1] # homogeneous neumann
     u_new[0,0,-1, cut2:] = u_new[0,0,-1,cut2:] # homogeneous neumann
-    u_new[0,0,-1, cut1:cut1] = q * torch.ones_like(u_new[0,0,-1, cut1:cut1])
+    u_new[0,0,-1, cut1:cut1] = u[0, 0, -1, cut1:cut1] + 0.01 * q # inhomogeneous neumann
 
     return u_new.to(torch.float64)
 
 class AIRichards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f=0, diag=1):
+    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, boundary_function, f=0, diag=1):
         super(AIRichards, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -290,21 +284,20 @@ class AIRichards(nn.Module):
         self.theta = theta
         self.kappa = kappa
 
-        self.g = g
+        self.g = g # dirichlet boundary conditions
+        self.boundary_function = boundary_function
         self.f = f
 
         self.diag = diag    
-        # TODO: make the boundary conditions variable i.e. not problem dependent
 
-    def forward(self, uold, t, dt, ninner=10, nouter=10):
+
+    def forward(self, uold, t, dt, ninner=10, nouter=10, L=2, omega=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-        L = 2 # lipschitz constant for L method
-        omega = 1 # damping parameter
 
         uj = uold.clone()
 
         bc_new = self.g(self.x, self.y, t + dt)
-        uuold = apply_malago_bcs(uold, bc_new)
+        uuold = self.boundary_function(uold, bc_new)
         
         if self.f == 0:
             f_new = torch.tensor(0)
@@ -316,20 +309,20 @@ class AIRichards(nn.Module):
             uiplus = torch.zeros_like(uj, device=device) # set up jacobi iteration
             ui = uj.clone()
 
-            uuj = apply_malago_bcs(uj, bc_new)
+            uuj = self.boundary_function(uj, bc_new)
 
             # Right hand side of Jacobi iteration - fixed
             b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
 
             for i in range(ninner):
-                uui = apply_malago_bcs(ui, bc_new) # apply dirichlet boundary condition
-
+                uui = self.boundary_function(ui, bc_new) # apply dirichlet boundary condition
+    
                 div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj) * uui) + self.kappa(uj) * self.diff(uui) - ui * self.diff(self.kappa(uuj)))
+
                 A = L * ui - dt * div_k_grad_ui
                 D = self.diag * dt + L
 
                 uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration
-                uuiplus = apply_bcs(uiplus, bc_new)
                 
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
@@ -357,7 +350,7 @@ class AIRichards(nn.Module):
         return uiplus    
     
 class AIRichardsPC(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, f=0, diag=1):
+    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, boundary_function, f=0, diag=1):
         super(AIRichardsPC, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -377,16 +370,17 @@ class AIRichardsPC(nn.Module):
         self.kappa = kappa
 
         self.g = g
+        self.boundary_function = boundary_function
         self.f = f
 
         self.diag = diag    
 
-    def forward(self, uold, t, dt, ninner=1, nouter=1):
+    def forward(self, uold, t, dt, ninner=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
         L = 5 # lipschitz constant, should be 2.
 
         bc_new = self.g(self.x, self.y, t + dt)
-        uuold = dirichlet_boundary_condition(uold, bc_new)
+        uuold = self.boundary_function(uold, bc_new)
 
         if self.f == 0:
             f_new = torch.tensor(0)
@@ -398,28 +392,28 @@ class AIRichardsPC(nn.Module):
 
         for i in range(ninner):
             # predictor step
-            uuj = dirichlet_boundary_condition(uj, u_exact(self.x, self.y, t + dt))
+            uuj = self.boundary_function(uj, bc_new)
             # this is like a forward euler scheme
-            div_k_grad_uj = - 0.5 * (self.diff(Kappa(uuj) * uuj) + Kappa(uj) * self.diff(uuj) - uj * self.diff(Kappa(uuj)))
+            div_k_grad_uj = - 0.5 * (self.diff(self.kappa(uuj) * uuj) + self.kappa(uj) * self.diff(uuj) - uj * self.diff(self.kappa(uuj)))
 
-            RHS = self.cmm(theta(uuold) - theta(uuj)) + dt * div_k_grad_uj + dt * f_new
+            RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) + dt * div_k_grad_uj + dt * f_new
             ujstar =  uj + 1 / L * RHS
-            ujstar = apply_bcs(ujstar, bc_new[:, :, 1:-1, 1:-1])
+            #ujstar = self.boundary_function(ujstar, bc_new)
             
-            uujstar = dirichlet_boundary_condition(ujstar, u_exact(self.x, self.y,t+dt)) # apply boundary condition
+            uujstar = self.boundary_function(ujstar, bc_new) # apply boundary condition
 
             # corrector step
             ujpred = 0.5 * (uold + ujstar)
-            uujpred = dirichlet_boundary_condition(ujpred, u_exact(self.x, self.y,t+dt))
+            uujpred = self.boundary_function(ujpred, bc_new)
 
-            div_k_grad_uj_pred = - 0.5 * (self.diff(Kappa(uujpred) * uujpred) + Kappa(ujpred) * self.diff(uujpred) - ujpred * self.diff(Kappa(uujpred)))
+            div_k_grad_uj_pred = - 0.5 * (self.diff(self.kappa(uujpred) * uujpred) + self.kappa(ujpred) * self.diff(uujpred) - ujpred * self.diff(self.kappa(uujpred)))
 
-            RHS_pred = self.cmm(theta(uuold) - theta(uujstar)) + dt * div_k_grad_uj_pred
+            RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar)) + dt * div_k_grad_uj_pred
             ujplus = (uj + 1 / L * RHS_pred).clone()
-            ujplus = apply_bcs(ujplus, bc_new[:, :, 1:-1, 1:-1])
+            #ujplus = self.boundary_function(ujplus, bc_new)
             
             if torch.sqrt(torch.mean((ujplus - uj)**2)) <= 1e-12:
-                print(f"Ierations converged after {i+1} iterations")
+                print(f"Iterations converged after {i+1} iterations")
                 break
 
             uj = ujplus.clone()
@@ -496,7 +490,7 @@ def theta_malago(u):
     m = (n - 1) / n
     theta1 = (1 / (1 + (- alpha * u) ** n)) ** m
     ans = torch.where(u < 0, theta1, 1)
-    return ans
+    return ans.to(torch.float64)
 
 def kappa_malago(u):
     n = 1.8313
@@ -504,7 +498,7 @@ def kappa_malago(u):
     m = (n - 1) / n
     kappa1 = theta_malago(u) ** 0.5 * (1 - (1 - theta_malago(u) ** (1 / m)) ** (1 / m)) ** 2
     ans = kappa_s * torch.where(u < 0, kappa1, 1)
-    return ans
+    return ans.to(torch.float64)
 
 
 

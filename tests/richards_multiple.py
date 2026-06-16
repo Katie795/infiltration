@@ -8,10 +8,13 @@ torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
 nx_array = torch.tensor([10, 20, 40, 80, 160])# numer of elements in each edge of mesh
+nx_array = torch.tensor([160])
 dt_array = torch.tensor([0.001, 0.0005, 0.0002, 0.0001])            # timestep array
+T_array = torch.tensor([0.001, 0.002, 0.004, 0.008])
 length = 10                                    # domain is [0, 10] x [0, 10]
 T = 0.001                                      # total length of time
-PC = False                                      # whether to use predictor corrector method
+dt = 0.001
+PC = True                                      # whether to use predictor corrector method
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -19,7 +22,6 @@ device = torch.device("cuda:0" if is_gpu else "cpu")
 print(f"Running on device {device}")
 
 ### iterates, lists and functions ###
-loss = nn.MSELoss()
 bias_initializer = torch.tensor([0.0], device=device).double()
 niterations = []
 
@@ -58,12 +60,12 @@ with torch.no_grad():
             diag = 8/3/dx**2
 
             if PC == True:
-                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, u_exact, diag=diag).to(device)
+                model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g=u_exact, boundary_function=apply_bcs, diag=diag).to(device)
             else:
-                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, u_exact, diag=diag).to(device).double()
+                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g=u_exact, boundary_function=apply_bcs, diag=diag).to(device).double()
 
             while t < T:
-                u_new = model(uold, t, dt, ninner=50, nouter=50)
+                u_new = model(uold, t, dt, ninner=50)
                 t += dt
                 if t >= T:
                     print("t has reached the final time!")
@@ -76,7 +78,7 @@ with torch.no_grad():
             #plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
             #plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
-            L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
+            L2_error_dx.append(torch.sqrt(torch.mean((u_new - u_exact(x, y, t))**2)).cpu().numpy())
 
         L2_error.append(L2_error_dx)
 

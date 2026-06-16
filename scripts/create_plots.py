@@ -40,9 +40,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--animate_malago",
+    action="store_true",
+    help="whether to produce aniamte malago infiltration"
+)
+
+parser.add_argument(
     "--animate_comparison",
     action="store_true",
     help="whether to produce an animation of the water depth comparing infiltration and no infiltration"
+)
+
+parser.add_argument(
+    "--nfig",
+    action="store",
+    help="how many pictures to include in animation"
 )
 
 args, _ = parser.parse_known_args()
@@ -78,6 +90,34 @@ if args.animate:
     for i in range(1, nfig):
         os.remove(f"../plots/timestep_{i}.png")
 
+
+if args.animate_malago:
+
+    deepest_arrray = np.genfromtxt(f"../results/u_{args.nfig}.csv", delimiter=',')
+    deepest = np.max(deepest_arrray)
+
+    X = np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')
+    Y = np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')
+
+    for i in range(1, int(args.nfig)):
+        Z = np.genfromtxt(f"../results/u_{i}.csv", delimiter=',')
+        fig, ax = plt.subplots(1,1, figsize=(16,4.8))
+        cmap = plt.colormaps['PiYG']
+
+        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=0, vmax=deepest, cmap=cmap)
+        cb = plt.colorbar(height, label="pressure head")
+        plt.savefig(f"../plots/u_{i}.png")
+        plt.close()
+
+
+    images = []
+    for i in range(1, int(args.nfig)):
+        images.append(imageio.imread(f"../plots/u_{i}.png"))
+        imageio.mimsave("../plots/malago_infiltration.mp4", images)
+
+    for i in range(1, int(args.nfig)):
+        os.remove(f"../plots/u_{i}.png")
+
 if args.animate_comparison:
     X = np.genfromtxt("../data/x_coords.csv", delimiter=',')
     Y = np.genfromtxt("../data/y_coords.csv", delimiter=',')
@@ -108,7 +148,7 @@ if args.animate_comparison:
         imageio.mimsave("../plots/comparison_animation_uv.mp4", images)
 
     for i in range(1, nfig):
-        os.remove(f"../plots/timestep_{i}.png")
+        os.remove(f"../plots/malago_{i}.png")
 
 
 

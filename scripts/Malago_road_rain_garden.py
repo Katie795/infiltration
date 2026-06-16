@@ -43,8 +43,8 @@ length = 4   # 4m length
 depth  = 1.2 # 1.2m depth
 nx = 400 # 1cm gridspace
 ny = 120 # 1cm gridspace
-dt = 0.1
-T = 1
+dt = 0.01
+T = 10
 save_fig = True
 
 generate_rectangular_coords(nx, nx, name="infiltration_", x_length=length, y_length=depth)
@@ -54,15 +54,14 @@ y = torch.tensor(np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',
 x_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_x_coords.csv", delimiter=',')).double()
 y_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_y_coords.csv", delimiter=',')).double()
 
-
 # # # ################################### # # #
 # # # ######    Linear Filter      ###### # # #
 # # # ################################### # # #
-bias_initializer = torch.tensor([0.0], device=device)
+bias_initializer = torch.tensor([0.0], device=device).double()
 # Isotropic Laplacian  
-w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
-                    [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
-                    [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
+w1 = torch.tensor([[[[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]],
+                    [[-1/3/dx**2], [8/3/dx**2], [-1/3/dx**2]],
+                    [[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]]]], device=device).double()
 # mass matrix
 wm = torch.tensor([[[[0.0], [0.0], [0.0]],
                             [[0.0], [1.0], [0.0]],
@@ -88,33 +87,22 @@ print('Diagonal component:', diag)
 # # # ################################### # # #
 input_shape = (1, 1, ny, nx)
 
-'''
-def get_source(time):
-    # here time is in seconds
-    if time < 100:
-        # 10mm / hour ( heavy rain )
-        # 10 / (60 * 60) = 0.00278 m / second
-        source_h[0,0, :, :] = 0.00278 * dt # source times timestep
-    elif time >= 100:
-        source_h[0,0, :, :] = 0
-'''  
-
-def boundary_conditions(x, y, t=1):
-    d_max = 1 
+def dirichlet_boundary_conditions(x, y, t=1):
+    d_max = 2 
     d_min = 0
     x_max = torch.max(x)
 
-    tensor = d_max * (x_max - x) / x_max
-    return torch.unsqueeze(torch.unsqueeze(tensor, 0), 0)
+    tensor = d_max * (x_max - 0.5 * x) / x_max
+    return torch.unsqueeze(torch.unsqueeze(tensor, 0), 0).to(torch.float64)
 
-plot_tensor(x_padded, y_padded, boundary_conditions(x_padded, y_padded), "malago_dirichlet_boundary_conditions")
+plot_tensor(x_padded, y_padded, dirichlet_boundary_conditions(x_padded, y_padded)[0][0], "malago_dirichlet_boundary_conditions")
 
-u_old = 0.01 * torch.unsqueeze(torch.unsqueeze(torch.ones_like(x), 0), 0)
+u_old = 0.01 * torch.unsqueeze(torch.unsqueeze(torch.ones_like(x), 0), 0).to(torch.float64)
 
-bcs = apply_malago_bcs(u_old, torch.unsqueeze(torch.unsqueeze(boundary_conditions(x_padded, y_padded), 0), 0))
+bcs = apply_malago_bcs(u_old, dirichlet_boundary_conditions(x_padded, y_padded))
 plot_tensor_infiltration(x_padded, y_padded, bcs[0][0], "malago_boundary_conditions")
 
-model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta_malago, kappa_malago, boundary_conditions, diag=diag).to(device)
+model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta_malago, kappa_malago, dirichlet_boundary_conditions, apply_malago_bcs, diag=diag).to(device)
 
 t = 0
 i = 0
@@ -123,13 +111,15 @@ with torch.no_grad():
 
     while t < T:
         
-        u_new = model(u_old, t, dt, ninner=50, nouter=50)
+        u_new = model(u_old, t, dt, ninner=50)
         t += dt
         i += 1
 
-        if save_fig == True:
-            plot_tensor_infiltration(x_padded, y_padded, u_new, f"results/malago_{i}")
-            #np.savetxt(f"results/u_{i}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+        if save_fig == True and i%10 == 0:
+            #plot_tensor_infiltration(x, y, u_new[0][0], f"malago_{i}")
+            np.savetxt(f"../results/u_{int(i/ 10)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+
+        u_old = u_new.clone()
 
             
     end = time.time()

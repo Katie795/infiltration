@@ -20,7 +20,6 @@ device = torch.device("cuda:0" if is_gpu else "cpu")
 print(f"Running on device {device}")
 
 ### iterates, lists and functions ###
-loss = nn.MSELoss()
 bias_initializer = torch.tensor([0.0], device=device).double()
 L2_error_dx = []
 niterations = []
@@ -98,12 +97,12 @@ with torch.no_grad():
             diag = 8/3/dx**2
 
             if KAPPA == True:
-                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g_zero, f, diag).to(device)
+                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa, g_zero, apply_bcs, f, diag).to(device)
             else:
-                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa1, g_zero, f1, diag).to(device).double()
+                model = AIRichards(w1, wm, bias_initializer, x_padded, y_padded, theta, Kappa1, g_zero, apply_bcs, f1, diag).to(device).double()
 
             while t < T:
-                u_new = model(uold, t, dt, imax=100)
+                u_new = model(uold, t, dt, L=5, ninner=100, nouter=100, omega=0.5)
                 t += dt
                 if t >= T:
                     print("t has reached the final time!")
@@ -116,7 +115,7 @@ with torch.no_grad():
             #plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
             #plot_tensor(x, y, torch.abs(error[0,0,:,:]).cpu().numpy(), "model_exact_difference_zerobc")
 
-            L2_error_dx.append(loss(u_new, u_exact(x, y, t)).cpu().numpy())
+            L2_error_dx.append(torch.sqrt(torch.mean((u_new - u_exact(x, y, t))**2)).cpu().numpy())
 
         L2_error.append(L2_error_dx)
 
