@@ -44,7 +44,7 @@ depth  = 1.2 # 1.2m depth
 nx = 100 # 2cm #400 # 1cm gridspace
 ny = 30 # 2cm #120 # 1cm gridspace
 dt = 0.1
-T = 21600
+T = 3600
 save_fig = True
 
 generate_rectangular_coords(nx, nx, name="infiltration_", x_length=length, y_length=depth)
