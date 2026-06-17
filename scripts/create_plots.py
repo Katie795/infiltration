@@ -106,6 +106,7 @@ if args.animate_malago:
 
         height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=0, vmax=deepest, cmap=cmap)
         cb = plt.colorbar(height, label="pressure head")
+        plt.title(f"Time = {100 * i} s")
         plt.savefig(f"../plots/u_{i}.png")
         plt.close()
 
