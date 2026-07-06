@@ -8,6 +8,9 @@ from matplotlib.ticker import MaxNLocator
 is_gpu = torch.cuda.is_available()
 device = torch.device("cuda:0" if is_gpu else "cpu")
 
+rainfall_data = np.genfromtxt("../data/Clifton_rain_modifed_for_rainfall_event.csv", delimiter=',')[1:, 0]
+time_data = 60 * 0.25 * np.array(range(len(rainfall_data)))
+
 def plot_tensor(x, y, tensor, name):
     fig, ax = plt.subplots(1,1, figsize=(10,10))
     height = ax.pcolormesh(x, y, tensor)
@@ -24,6 +27,13 @@ def plot_tensor_infiltration(x, y, tensor, name):
     cb = plt.colorbar(height, label=name, ax=ax)
     plt.title(name)
     plt.savefig(f"../plots/{name}")
+
+
+def rainfall(t):
+    return np.interp(t, time_data, rainfall_data)
+
+
+
 
 def generate_coords(nx, ny, name="", length=1):
     """Generate csv files containing the x and y coordinate data for a uniform grid

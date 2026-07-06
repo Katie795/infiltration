@@ -116,9 +116,13 @@ model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta_malago,
 t = 0
 i = 0
 start = time.time()
+print("starting timer")
+
 with torch.no_grad():
 
     while t < T:
+
+        print(rainfall(t))
         
         u_new = model(u_old, t, dt, ninner=50)
         t += dt
@@ -129,6 +133,7 @@ with torch.no_grad():
             np.savetxt(f"../results/u_{int(i/ 100)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 
         u_old = u_new.clone()
+        print("in the loop")
 
             
     end = time.time()

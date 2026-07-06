@@ -4,6 +4,8 @@ import imageio.v2 as imageio
 import os
 import tomllib
 import argparse
+import csv
+import datetime
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -37,6 +39,12 @@ parser.add_argument(
     "--domain",
     action="store_true",
     help="whether to produce plots of the domain"
+)
+
+parser.add_argument(
+    "--rainfall_data",
+    action="store_true",
+    help="whether to produce plots of the rainfall data"
 )
 
 parser.add_argument(
@@ -89,7 +97,6 @@ if args.animate:
 
     for i in range(1, nfig):
         os.remove(f"../plots/timestep_{i}.png")
-
 
 if args.animate_malago:
 
@@ -151,6 +158,24 @@ if args.animate_comparison:
     for i in range(1, nfig):
         os.remove(f"../plots/malago_{i}.png")
 
+
+if args.rainfall_data:
+    rainfall = np.genfromtxt("../data/Clifton_rain_modifed_for_rainfall_event.csv", delimiter=',')[1:, 0]
+    time = np.genfromtxt("../data/Clifton_rain_modifed_for_rainfall_event.csv", delimiter=',')[1:, 1]
+    with open("../data/Clifton_rain_modifed_for_rainfall_event.csv", newline="") as f:
+        reader = csv.reader(f)
+        data = list(reader)
+        rainfall_time = [column[1] for column in data][1:]
+    print(rainfall_time)
+
+    newtime = np.array(range(len(rainfall)))
+    fig, ax = plt.subplots(1,1)
+
+    plt.plot(0.25 * newtime, rainfall)
+    plt.title("Rainfall event on 5th January 2025")
+    plt.xlabel("Hours")
+    plt.ylabel("Rainfall (mm)")
+    plt.show()
 
 
 
