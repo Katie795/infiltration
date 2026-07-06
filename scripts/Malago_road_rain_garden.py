@@ -95,6 +95,15 @@ def dirichlet_boundary_conditions(x, y, t=1):
     tensor = d_max * (x_max - 0.5 * x) / x_max
     return torch.unsqueeze(torch.unsqueeze(tensor, 0), 0).to(torch.float64)
 
+def dirichlet_boundary_conditions(x, y, t=1):
+    d_max = 2 
+    d_min = 0
+    x_max = torch.max(x)
+
+    tensor = d_max * (x_max - 0.5 * x) / x_max
+    return torch.unsqueeze(torch.unsqueeze(tensor, 0), 0).to(torch.float64)
+
+
 plot_tensor(x_padded, y_padded, dirichlet_boundary_conditions(x_padded, y_padded)[0][0], "malago_dirichlet_boundary_conditions")
 
 u_old = 0.01 * torch.unsqueeze(torch.unsqueeze(torch.ones_like(x), 0), 0).to(torch.float64)
