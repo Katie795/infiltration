@@ -30,9 +30,7 @@ def plot_tensor_infiltration(x, y, tensor, name):
 
 
 def rainfall(t):
-    return np.interp(t, time_data, rainfall_data)
-
-
+    return np.interp(t, time_data, rainfall_data) / (1000 * 15 * 60)
 
 
 def generate_coords(nx, ny, name="", length=1):
@@ -205,77 +203,8 @@ def u_exact(x, y, t):
 
     return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
 
-def dirichlet_boundary_condition(u, g):
-    """Applies a boundary condition g to a function u.
-    
-    :args u: original function over nx x ny grid to which the boundary condition is applied
-    :args g: boundary function over nx+2 x ny+2 grid
-    
-    :returns uu: nx+2 x ny+2 function with u in interior cells and g on padded cells."""
-
-    ny = u.shape[2] 
-    nx = u.shape[3]
-
-    uu = torch.zeros_like(g)
-
-    uu[0,0,1:nx+1,1:nx+1] = u[0,0,:,:] # insert u values in the interior 
-    # left hand side 
-    uu[0,0,:,0] = g[0,0,:,0] # set Dirichlet boundary conditions 
-    # right hand side
-    uu[0,0,:,nx+1] = g[0,0,:,nx+1] # set Dirichlet boundary conditions
-    # top side
-    uu[0,0,0,:] = g[0,0,0,:]  # set Dirichlet boundary conditions 
-    # bottom side
-    uu[0,0,ny+1,:] = g[0,0,ny+1,:]  # set Dirichlet boundary conditions 
-
-    return uu.to(torch.float64)
-
-def apply_bcs(u, g):
-    """Applies a boundary condition g to a function u.
-    
-    :args u: original function over nx x ny grid to which the boundary condition is applied
-    :args g: boundary function over nx+2 x ny+2 grid
-    
-    :returns uu: nx+2 x ny+2 function with u in interior cells and g on padded cells."""
-    #u_new = u.clone()
-
-    u_new = torch.zeros_like(g)
-    u_new[0,0,1:-1, 1:-1] = u
-
-
-    u_new[0,0,0,:] = g[0,0,0,:] # top
-    u_new[0,0,:,0] = g[0,0,:,0] # left
-    u_new[0,0,:,-1] = g[0,0,:,-1] # right
-    u_new[0,0,-1,:] = g[0,0,-1,:]  # bottom
-
-    return u_new.to(torch.float64)
-
-def apply_malago_bcs(u, g, q=2):
-    """Applies a boundary condition g to a function u.
-    
-    :args u: original function over nx x ny grid to which the boundary condition is applied
-    :args g: boundary function over nx+2 x ny+2 grid
-    
-    :returns uu: nx+2 x ny+2 function"""
-
-    u_new = torch.zeros_like(g)
-
-    u_new[0,0,1:-1, 1:-1] = u
-
-    cut1 = 177
-    cut2 = 233
-
-    u_new[0,0,0,:] = g[0,0,0,:]                # top dirichlet
-    u_new[0,0,:,0]       = u_new[0,0,:,1]      # homogeneous neumann  
-    u_new[0,0,:,-1]      = u_new[0,0,:,-2]     # homogeneous neumann
-    u_new[0,0,-1, :cut1] = u_new[0,0,-2,:cut1] # homogeneous neumann
-    u_new[0,0,-1, cut2:] = u_new[0,0,-1,cut2:] # homogeneous neumann
-    u_new[0,0,-1, cut1:cut1] = u[0, 0, -1, cut1:cut1] + 0.01 * q # inhomogeneous neumann
-
-    return u_new.to(torch.float64)
-
 class AIRichards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, boundary_function, f=0, diag=1):
+    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, f=0, diag=1):
         super(AIRichards, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -294,20 +223,44 @@ class AIRichards(nn.Module):
         self.theta = theta
         self.kappa = kappa
 
-        self.g = g # dirichlet boundary conditions
-        self.boundary_function = boundary_function
         self.f = f
 
-        self.diag = diag    
+        self.diag = diag   
+
+    def apply_malago_infiltration_bcs(self, u, q):
+        """Applies a boundary condition g to a function u. Used when the soil is not saturated
+        
+        :args u: original function over nx x ny grid to which the boundary condition is applied
+        :args g: boundary function over nx+2 x ny+2 grid
+        
+        :returns uu: nx+2 x ny+2 function"""
 
 
-    def forward(self, uold, t, dt, ninner=10, nouter=10, L=2, omega=1):
+        input_shape = (1, 1, 30, 100) #TODO generalise
+        u_new = torch.zeros(input_shape)
+
+        u_new[0,0,1:-1, 1:-1] = u
+
+        cut1 = 177
+        cut2 = 233
+
+        u_new[0,0,0,:]       = u_new[0,0,1,:] + 0.01 * q   # inhomogeneous neumann
+        u_new[0,0,:,0]       = u_new[0,0,:,1]      # homogeneous neumann  
+        u_new[0,0,:,-1]      = u_new[0,0,:,-2]     # homogeneous neumann
+        u_new[0,0,-1, :cut1] = u_new[0,0,-2,:cut1] # homogeneous neumann
+        u_new[0,0,-1, cut2:] = u_new[0,0,-1,cut2:] # homogeneous neumann
+        u_new[0,0,-1, cut1:cut1] = u[0, 0, -2, cut1:cut1] + 0.01 * q # inhomogeneous neumann
+
+        return u_new.to(torch.float64) 
+
+
+    def forward(self, uold, t, dt, ninner=10, nouter=10, L=2, omega=1, q=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
         uj = uold.clone()
 
         bc_new = self.g(self.x, self.y, t + dt)
-        uuold = self.boundary_function(uold, bc_new)
+        uuold = self.apply_malago_infiltration_bcs(uold, q)
         
         if self.f == 0:
             f_new = torch.tensor(0)
@@ -319,13 +272,13 @@ class AIRichards(nn.Module):
             uiplus = torch.zeros_like(uj, device=device) # set up jacobi iteration
             ui = uj.clone()
 
-            uuj = self.boundary_function(uj, bc_new)
+            uuj = self.boundary_function(uj, bc_new, q)
 
             # Right hand side of Jacobi iteration - fixed
             b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
 
             for i in range(ninner):
-                uui = self.boundary_function(ui, bc_new) # apply dirichlet boundary condition
+                uui = self.boundary_function(ui, bc_new, q) # apply dirichlet boundary condition
     
                 div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj) * uui) + self.kappa(uj) * self.diff(uui) - ui * self.diff(self.kappa(uuj)))
 
@@ -360,7 +313,7 @@ class AIRichards(nn.Module):
         return uiplus    
     
 class AIRichardsPC(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, g, boundary_function, f=0, diag=1):
+    def __init__(self, w1, wm, bias_initializer, x, y, theta, kappa, f=0, diag=1):
         super(AIRichardsPC, self).__init__()
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -379,18 +332,40 @@ class AIRichardsPC(nn.Module):
         self.theta = theta
         self.kappa = kappa
 
-        self.g = g
-        self.boundary_function = boundary_function
         self.f = f
 
-        self.diag = diag    
+        self.diag = diag   
 
-    def forward(self, uold, t, dt, ninner=1):
+    def apply_malago_infiltration_bcs(self, u, q):
+        """Applies a boundary condition g to a function u. Used when the soil is not saturated
+        
+        :args u: original function over nx x ny grid to which the boundary condition is applied
+        :args g: boundary function over nx+2 x ny+2 grid
+        
+        :returns uu: nx+2 x ny+2 function"""
+
+        input_shape = (1, 1, 103, 103) #TODO generalise
+        u_new = torch.zeros(input_shape)
+
+        u_new[0,0,1:-1, 1:-1] = u
+
+        cut1 = 177
+        cut2 = 233
+
+        u_new[0,0,0,:]       = u_new[0,0,0,:] + 0.01 * q   # inhomogeneous neumann in m 
+        u_new[0,0,:,0]       = u_new[0,0,:,1]      # homogeneous neumann  
+        u_new[0,0,:,-1]      = u_new[0,0,:,-2]     # homogeneous neumann
+        u_new[0,0,-1, :cut1] = u_new[0,0,-2,:cut1] # homogeneous neumann
+        u_new[0,0,-1, cut2:] = u_new[0,0,-1,cut2:] # homogeneous neumann
+        u_new[0,0,-1, cut1:cut1] = u[0, 0, -1, cut1:cut1] + 0.01 * q # inhomogeneous neumann
+
+        return u_new.to(torch.float64)  
+
+    def forward(self, uold, t, dt, ninner=1, q=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
         L = 5 # lipschitz constant, should be 2.
 
-        bc_new = self.g(self.x, self.y, t + dt)
-        uuold = self.boundary_function(uold, bc_new)
+        uuold = self.apply_malago_infiltration_bcs(uold, q)
 
         if self.f == 0:
             f_new = torch.tensor(0)
@@ -402,25 +377,25 @@ class AIRichardsPC(nn.Module):
 
         for i in range(ninner):
             # predictor step
-            uuj = self.boundary_function(uj, bc_new)
+            uuj = self.apply_malago_infiltration_bcs(uj, q)
             # this is like a forward euler scheme
             div_k_grad_uj = - 0.5 * (self.diff(self.kappa(uuj) * uuj) + self.kappa(uj) * self.diff(uuj) - uj * self.diff(self.kappa(uuj)))
 
             RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) + dt * div_k_grad_uj + dt * f_new
             ujstar =  uj + 1 / L * RHS
-            #ujstar = self.boundary_function(ujstar, bc_new)
+            #ujstar = self.apply_malago_infiltration_bcs(ujstar, bc_new)
             
-            uujstar = self.boundary_function(ujstar, bc_new) # apply boundary condition
+            uujstar = self.apply_malago_infiltration_bcs(ujstar, q) # apply boundary condition
 
             # corrector step
             ujpred = 0.5 * (uold + ujstar)
-            uujpred = self.boundary_function(ujpred, bc_new)
+            uujpred = self.apply_malago_infiltration_bcs(ujpred, q)
 
             div_k_grad_uj_pred = - 0.5 * (self.diff(self.kappa(uujpred) * uujpred) + self.kappa(ujpred) * self.diff(uujpred) - ujpred * self.diff(self.kappa(uujpred)))
 
             RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar)) + dt * div_k_grad_uj_pred
             ujplus = (uj + 1 / L * RHS_pred).clone()
-            #ujplus = self.boundary_function(ujplus, bc_new)
+            #ujplus = self.apply_malago_infiltration_bcs(ujplus, q)
             
             if torch.sqrt(torch.mean((ujplus - uj)**2)) <= 1e-12:
                 print(f"Iterations converged after {i+1} iterations")

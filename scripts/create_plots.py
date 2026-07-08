@@ -113,7 +113,7 @@ if args.animate_malago:
 
         height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=0, vmax=deepest, cmap=cmap)
         cb = plt.colorbar(height, label="pressure head")
-        plt.title(f"Time = {100 * i} s")
+        plt.title(f"Time = {10 * i} s")
         plt.savefig(f"../plots/u_{i}.png")
         plt.close()
 
@@ -175,6 +175,7 @@ if args.rainfall_data:
     plt.title("Rainfall event on 5th January 2025")
     plt.xlabel("Hours")
     plt.ylabel("Rainfall (mm)")
+    plt.savefig("../plots/rainfall_data.png")
     plt.show()
 
 
