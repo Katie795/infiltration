@@ -481,7 +481,7 @@ class AIRichardsPC(nn.Module):
 
         #u_new[0,0,-1, cut1:cut1] = u_new[0, 0, -2, cut1:cut1] - dy * (q / kappa(u_new[:, :, -2, cut1:cut1]) + 1)# inhomogeneous neumann
 
-        return u_new.to(torch.float64)  
+        return u_new.to(torch.float64).cuda()  
 
     def forward(self, uold, t, dt, boundary_type, ninner=1, q=1, g=1, dy=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
@@ -505,6 +505,8 @@ class AIRichardsPC(nn.Module):
 
         ujplus = torch.zeros_like(uold, device=device)
         uj = uold.clone()
+
+        
 
         for i in range(ninner):
             # predictor step

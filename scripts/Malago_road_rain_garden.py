@@ -51,10 +51,13 @@ save_fig = True
 
 generate_rectangular_coords(nx, nx, name="infiltration_", x_length=length, y_length=depth)
 generate_rectangular_padded_coords(nx, nx, name="infiltration_padded_", x_length=length, y_length=depth)
-x = torch.tensor(np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')).double()
-y = torch.tensor(np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')).double()
-x_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_x_coords.csv", delimiter=',')).double()
-y_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_y_coords.csv", delimiter=',')).double()
+x = torch.tensor(np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')).double().cuda()
+y = torch.tensor(np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')).double().cuda()
+x_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_x_coords.csv", delimiter=',')).double().cuda()
+y_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_y_coords.csv", delimiter=',')).double().cuda()
+
+print(x.is_cuda)
+print(x_padded.is_cuda)
 
 # # # ################################### # # #
 # # # ######    Linear Filter      ###### # # #
@@ -92,7 +95,7 @@ input_shape = (1, 1, ny, nx)
 def rainfall_flux(t):
     return dt * np.interp(t, time_data, rainfall_data) / (1000 * 15 * 60) #converting mm/15mins flux to m/second / timestep
 
-u_old = 0.0 * torch.unsqueeze(torch.unsqueeze(torch.ones_like(x), 0), 0).to(torch.float64)
+u_old = 0.0 * torch.unsqueeze(torch.unsqueeze(torch.ones_like(x), 0), 0).to(torch.float64).cuda()
 model = AIRichardsPC(w1, wm, bias_initializer, y, y_padded, theta_malago, kappa_malago, diag=diag).to(device)
 
 t = 0
