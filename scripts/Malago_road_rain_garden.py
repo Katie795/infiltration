@@ -35,16 +35,18 @@ print(f"Running on device {device}")
 # # # ################################### # # #
 # create a torch constant
 
-dt = torch.tensor([config["parameters"]["dt"]], device=device) # timestep (s)
-dx = torch.tensor([config["parameters"]["dx"]], device=device) # spatial discretisation (m) (here it is 20cm)
+
+# TODO tidy this up!!!
+#dt = torch.tensor([config["parameters"]["dt"]], device=device) # timestep (s)
+dx = 0.02 #  torch.tensor([config["parameters"]["dx"]], device=device) # spatial discretisation (m) (here it is 20cm)
 #nx = #torch.tensor([config["parameters"]["nx"]], device=device) # number of points in x direction
 ny = torch.tensor([config["parameters"]["ny"]], device=device) # number of points in y direction
 length = 4   # 4m length
 depth  = 1.2 # 1.2m depth
-nx = 100 # 2cm #400 # 1cm gridspace
-ny = 30 # 2cm #120 # 1cm gridspace
-dt = 0.1
-T = 3600
+nx = 200 # 2cm #400 # 1cm gridspace
+ny = 60 # 2cm #120 # 1cm gridspace
+dt = 0.01
+T = 20
 save_fig = True
 
 generate_rectangular_coords(nx, nx, name="infiltration_", x_length=length, y_length=depth)
@@ -87,23 +89,11 @@ print('Diagonal component:', diag)
 # # # ################################### # # #
 input_shape = (1, 1, ny, nx)
 
-def dirichlet_boundary_conditions(x, y, t=1):
-    d_max = 2 
-    d_min = 0
-    x_max = torch.max(x)
+def rainfall_flux(t):
+    return dt * np.interp(t, time_data, rainfall_data) / (1000 * 15 * 60) #converting mm/15mins flux to m/second / timestep
 
-    tensor = d_max * (x_max - 0.5 * x) / x_max
-    return torch.unsqueeze(torch.unsqueeze(tensor, 0), 0).to(torch.float64)
-
-
-plot_tensor(x_padded, y_padded, dirichlet_boundary_conditions(x_padded, y_padded)[0][0], "malago_dirichlet_boundary_conditions")
-
-u_old = 0.1 * torch.unsqueeze(torch.unsqueeze(torch.ones_like(x), 0), 0).to(torch.float64)
-
-#bcs = apply_malago_bcs(u_old, dirichlet_boundary_conditions(x_padded, y_padded))
-#plot_tensor_infiltration(x_padded, y_padded, bcs[0][0], "malago_boundary_conditions")
-
-model = AIRichardsPC(w1, wm, bias_initializer, x_padded, y_padded, theta_malago, kappa_malago, diag=diag).to(device)
+u_old = 0.0 * torch.unsqueeze(torch.unsqueeze(torch.ones_like(x), 0), 0).to(torch.float64)
+model = AIRichardsPC(w1, wm, bias_initializer, y, y_padded, theta_malago, kappa_malago, diag=diag).to(device)
 
 t = 0
 i = 0
@@ -113,18 +103,20 @@ print("starting timer")
 with torch.no_grad():
 
     while t < T:
+
+        print(f"q is {rainfall_flux(t)}")
+
         
-        u_new = model(u_old, t, dt, ninner=50, q=rainfall(t))
+        u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=2, q=rainfall_flux(t), dy=0.02)
         t += dt
         i += 1
 
-        if save_fig == True and i%100 == 0:
+        if save_fig == True and i % 100 == 0:
             #plot_tensor_infiltration(x, y, u_new[0][0], f"malago_{i}")
             np.savetxt(f"../results/u_{int(i/ 100)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 
         u_old = u_new.clone()
-        print("in the loop")
 
             
     end = time.time()
-    print(f'Time to run simulation:{end-start}s')
+    print(f'Time to run simulation: {end-start}s')

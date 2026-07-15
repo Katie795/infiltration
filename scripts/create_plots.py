@@ -101,29 +101,32 @@ if args.animate:
 if args.animate_malago:
 
     deepest_arrray = np.genfromtxt(f"../results/u_{args.nfig}.csv", delimiter=',')
-    deepest = np.max(deepest_arrray)
+    smallest = np.min(deepest_arrray)
+    largest = np.max(deepest_arrray)
 
     X = np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')
     Y = np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')
 
-    for i in range(1, int(args.nfig)):
+    for i in range(1, int(args.nfig) + 1):
         Z = np.genfromtxt(f"../results/u_{i}.csv", delimiter=',')
         fig, ax = plt.subplots(1,1, figsize=(16,4.8))
-        cmap = plt.colormaps['PiYG']
+        cmap = plt.colormaps['Blues']
 
-        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=0, vmax=deepest, cmap=cmap)
+        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=smallest, vmax=largest, cmap=cmap)
         cb = plt.colorbar(height, label="pressure head")
-        plt.title(f"Time = {10 * i} s")
+        # time is saved every 100 timesteps where each timestep is 0.01 second
+
+        plt.title(f"Time = {i} s")
         plt.savefig(f"../plots/u_{i}.png")
         plt.close()
 
 
     images = []
-    for i in range(1, int(args.nfig)):
+    for i in range(1, int(args.nfig) + 1):
         images.append(imageio.imread(f"../plots/u_{i}.png"))
         imageio.mimsave("../plots/malago_infiltration.mp4", images)
 
-    for i in range(1, int(args.nfig)):
+    for i in range(1, int(args.nfig) + 1):
         os.remove(f"../plots/u_{i}.png")
 
 if args.animate_comparison:
