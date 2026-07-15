@@ -46,7 +46,7 @@ depth  = 1.2 # 1.2m depth
 nx = 200 # 2cm #400 # 1cm gridspace
 ny = 60 # 2cm #120 # 1cm gridspace
 dt = 0.01
-T = 21600 # 6 hours
+T = 3600 # 1 hours
 save_fig = True
 
 generate_rectangular_coords(nx, nx, name="infiltration_", x_length=length, y_length=depth)
@@ -106,17 +106,14 @@ print("starting timer")
 with torch.no_grad():
 
     while t < T:
-
-        print(f"q is {rainfall_flux(t)}")
-
         
         u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=2, q=rainfall_flux(t), dy=0.02)
         t += dt
         i += 1
 
-        if save_fig == True and i % 100 == 0:
+        if save_fig == True and i % 1000 == 0:
             #plot_tensor_infiltration(x, y, u_new[0][0], f"malago_{i}")
-            np.savetxt(f"../results/u_{int(i/ 100)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            np.savetxt(f"../results/u_{int(i/ 1000)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 
         u_old = u_new.clone()
 

@@ -112,11 +112,11 @@ if args.animate_malago:
         fig, ax = plt.subplots(1,1, figsize=(16,4.8))
         cmap = plt.colormaps['Blues']
 
-        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=smallest, vmax=largest, cmap=cmap)
+        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=0, vmax=largest, cmap=cmap)
         cb = plt.colorbar(height, label="pressure head")
         # time is saved every 100 timesteps where each timestep is 0.01 second
 
-        plt.title(f"Time = {i} s")
+        plt.title(f"Time = {10 * i} s")
         plt.savefig(f"../plots/u_{i}.png")
         plt.close()
 
