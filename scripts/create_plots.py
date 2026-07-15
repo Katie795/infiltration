@@ -116,7 +116,7 @@ if args.animate_malago:
         cb = plt.colorbar(height, label="pressure head")
         # time is saved every 100 timesteps where each timestep is 0.01 second
 
-        plt.title(f"Time = {10 * i} s")
+        plt.title(f"Time = {1 * i} s")
         plt.savefig(f"../plots/u_{i}.png")
         plt.close()
 
@@ -124,7 +124,7 @@ if args.animate_malago:
     images = []
     for i in range(1, int(args.nfig) + 1):
         images.append(imageio.imread(f"../plots/u_{i}.png"))
-        imageio.mimsave("../plots/malago_infiltration.mp4", images)
+        imageio.mimsave("../plots/malago_infiltration_short.mp4", images)
 
     for i in range(1, int(args.nfig) + 1):
         os.remove(f"../plots/u_{i}.png")
