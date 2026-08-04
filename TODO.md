@@ -1,8 +1,7 @@
 # Project infiltration
 
 ## Current focus
-- [] Get test_csvs working and committed
-- [] Get test_coefficients working and committed
+- [] Pick one test case and get it working
 
 ## Next
 - [] Work through all tests and update them all
@@ -13,3 +12,5 @@
 ## Done 
 - [x] Refactor richards_solver into parent and child classes
 - [x] Get infiltration running in main file
+- [x] Get test_csvs working and committed
+- [x] Get test_coefficients working and committed
