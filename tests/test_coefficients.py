@@ -1,4 +1,5 @@
-import numpy as np
+# Tests for the horung messing test coefficients
+
 import torch
 from AI4Flood.richards_solver import *
 from AI4Flood.generate_csv_files import *

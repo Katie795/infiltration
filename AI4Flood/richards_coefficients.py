@@ -15,7 +15,7 @@ def theta_hm(s):
 
     ans = torch.where(s < 0, base - atan_term, base)
 
-    return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
+    return ans.unsqueeze(0).unsqueeze(0)
 
 
 def theta_prime_hm(s):
@@ -31,7 +31,7 @@ def theta_prime_hm(s):
     theta_left = - 4 * torch.atan(s)/ (s**2 + 1)
     ans = torch.where(s < 0, theta_left, base)
 
-    return torch.unsqueeze(torch.unsqueeze(ans, 0),0).to(torch.float64)
+    return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
 
 
 def kappa_hm(s):
@@ -48,7 +48,7 @@ def kappa_hm(s):
 
     ans = torch.where(s < 0, kappa_left, base)
 
-    return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
+    return ans.unsqueeze(0).unsqueeze(0)
 
 def Kappa_prime(s):
     """kappa_hm'(s) in the Horung-Messing test. Needed for Newton's method. Here
@@ -64,7 +64,7 @@ def Kappa_prime(s):
 
     ans = torch.where(s < 0, kappa_prime_left, base)
 
-    return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
+    return ans.unsqueeze(0).unsqueeze(0)
 
 def u_exact_hm(x, y, t):
     """u_exact in the Horung-Messing test.  Here
@@ -82,7 +82,7 @@ def u_exact_hm(x, y, t):
 
     ans = torch.where(s < 0, left, right)
 
-    return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
+    return ans.unsqueeze(0).unsqueeze(0)
 
 
 def theta_malago(u):
@@ -91,7 +91,7 @@ def theta_malago(u):
     m = (n - 1) / n
     theta1 = (1 / (1 + (- alpha * u) ** n)) ** m
     ans = torch.where(u < 0, theta1, 1)
-    return ans.to(torch.float64)
+    return ans
 
 def kappa_malago(u):
     n = 1.8313
@@ -99,7 +99,7 @@ def kappa_malago(u):
     m = (n - 1) / n
     kappa1 = theta_malago(u) ** 0.5 * (1 - (1 - theta_malago(u) ** (1 / m)) ** (1 / m)) ** 2
     ans = kappa_s * torch.where(u < 0, kappa1, 1)
-    return ans.to(torch.float64)
+    return ans
 
 if __name__ == "__main__":
     import generate_csv_files

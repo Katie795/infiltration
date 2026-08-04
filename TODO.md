@@ -3,10 +3,10 @@
 ## Current focus
 - [] Get test_csvs working and committed
 - [] Get test_coefficients working and committed
-- [] Update generate_csv_files test 
 
 ## Next
-- [] Set up all test cases
+- [] Work through all tests and update them all
+- [] Add more tests to generating csvs
 - [] Check BC's are the right way round
 - [] Check u is negative everywhere
 
