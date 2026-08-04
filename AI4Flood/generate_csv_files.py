@@ -19,25 +19,85 @@ args, _ = parser.parse_known_args()
 with open(args.config, "rb") as f:
     config = tomllib.load(f)
 
-
-dx = config["parameters"]["dx"]
-nx = config["parameters"]["nx"]
-ny = config["parameters"]["ny"]
-
-def generate_coords():
+def generate_coords(nx, ny, name="", length=1):
     """Generate csv files containing the x and y coordinate data for a uniform grid
-    """
+    
+    :args filename: csv file to generate coordintates from"""
 
-    x_coords = np.zeros((ny, nx))
-    y_coords = np.zeros((ny, nx))
-    for i in range(nx):
-        for j in range(ny):
+    dx = length / nx
+
+    x_coords = np.zeros((ny+1, nx+1))
+    y_coords = np.zeros((ny+1, nx+1))
+    for i in range(nx+1):
+        for j in range(ny+1):
             x_coords[j][i] = dx * i
-            y_coords[j][i] = dx * ny - dx * (j + 1)
+            y_coords[j][i] = dx * ny - dx * j
 
-    np.savetxt("../data/x_coords.csv", x_coords, delimiter=",")
-    np.savetxt("../data/y_coords.csv", y_coords, delimiter=",")
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
+
     return x_coords, y_coords
+
+def generate_rectangular_coords(nx, ny, name="", x_length=1, y_length=1):
+    """Generate csv files containing the x and y coordinate data for a uniform grid
+    
+    :args filename: csv file to generate coordintates from"""
+
+    dx = x_length / nx
+    dy = y_length / ny
+
+    x_coords = np.zeros((ny+1, nx+1))
+    y_coords = np.zeros((ny+1, nx+1))
+    for i in range(nx+1):
+        for j in range(ny+1):
+            x_coords[j][i] = dx * i
+            y_coords[j][i] = dy * ny - dy * j
+
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
+
+    return x_coords, y_coords
+
+def generate_rectangular_padded_coords(nx, ny, name="", x_length=1, y_length=1):
+    """Generate csv files containing the x and y coordinate data for a uniform grid
+    
+    :args filename: csv file to generate coordintates from"""
+
+    dx = x_length / nx
+    dy = y_length / ny
+
+    x_coords = np.zeros((ny+3, nx+3))
+    y_coords = np.zeros((ny+3, nx+3))
+    for i in range(nx+3):
+        for j in range(ny+3):
+            x_coords[j][i] = dx * (i - 1)
+            y_coords[j][i] = dy * ny - dy * (j-1) 
+
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
+
+    return x_coords, y_coords
+
+
+def generate_padded_coords(nx, ny, name="", length=1):
+    """Generate csv files containing the x and y coordinate data for a uniform grid
+    
+    :args filename: csv file to generate coordintates from"""
+
+    dx = length / nx
+
+    x_coords = np.zeros((ny+3, nx+3))
+    y_coords = np.zeros((ny+3, nx+3))
+    for i in range(nx+3):
+        for j in range(ny+3):
+            x_coords[j][i] = dx * (i - 1)
+            y_coords[j][i] = dx * ny - dx * (j-1) 
+
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
+
+    return x_coords, y_coords
+
 
 def create_xyz_table(z_file, output_file):
     """Write a paraview-readable csv file with coordinate data and height data, removing data not in
@@ -172,6 +232,9 @@ def find_indices_rain_garden(input_file, output_file):
 
 if __name__ == "__main__":
     # Script to find and include the rain garden
+    dx = config["parameters"]["dx"]
+    nx = config["parameters"]["nx"]
+    ny = config["parameters"]["ny"]
     generate_coords()
     find_xyz_rain_garden("../data/x_coords.csv", "../data/y_coords.csv","../data/malago_height.csv", "../data/rain_garden.csv")
     find_indices_rain_garden("../data/rain_garden.csv", "../data/rain_garden_indices.csv")

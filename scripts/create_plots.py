@@ -6,6 +6,7 @@ import tomllib
 import argparse
 import csv
 import datetime
+import torch
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -13,7 +14,7 @@ parser.add_argument(
     type=str,
     action="store",
     help="name of the parameter file",
-    default="config.toml"
+    default="config_rain_garden.toml"
 )
 
 parser.add_argument(
@@ -70,6 +71,11 @@ args, _ = parser.parse_known_args()
 with open(args.config, "rb") as f:
     config = tomllib.load(f)
 
+n_out = torch.tensor([config["parameters"]["n_out"]])
+dt    = torch.tensor([config["parameters"]["dt"]])
+
+
+
 if args.animate:
     X = np.genfromtxt("../data/x_coords.csv", delimiter=',')
     Y = np.genfromtxt("../data/y_coords.csv", delimiter=',')
@@ -116,7 +122,7 @@ if args.animate_malago:
         cb = plt.colorbar(height, label="pressure head")
         # time is saved every 100 timesteps where each timestep is 0.01 second
 
-        plt.title(f"Time = {1 * i} s")
+        plt.title(f"Time = {dt * n_out * i} s")
         plt.savefig(f"../plots/u_{i}.png")
         plt.close()
 

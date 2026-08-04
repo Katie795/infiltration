@@ -3,8 +3,6 @@
  Department of Earth Science and Engineering
  Imperial College London
 
- amin.nadimy19@imperial.ac.uk
-
  modified by Katie MacKenzie 
  km2560@bath.ac.uk
 '''
@@ -12,7 +10,7 @@
 import numpy as np 
 import time 
 import torch
-from AI4Flood.SWE import AI4SWE
+from AI4Flood.swe_solver import AI4SWE
 import tomllib
 import argparse
 import AI4Flood.infiltration as infiltration 

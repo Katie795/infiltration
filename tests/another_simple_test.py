@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import torch.nn as nn
-from AI4Flood.richards_functions import dirichlet_boundary_condition, generate_coords, generate_padded_coords, plot_tensor
+from AI4Flood.richards_solver import dirichlet_boundary_condition, generate_coords, generate_padded_coords, plot_tensor
 
 def u_exact(x, y, t):
     return x - y - t

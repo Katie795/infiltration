@@ -2,7 +2,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from AI4Flood.richards_functions import *
+from AI4Flood.richards_solver import *
 
 torch.set_default_dtype(torch.float64)
 
