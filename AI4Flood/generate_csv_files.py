@@ -1,23 +1,8 @@
-# Functions for pre- and post-processing data
+# Functions for preprocessing csv data
 import numpy as np
 import pandas as pd
+import torch
 
-import tomllib
-import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--config",
-    type=str,
-    action="store",
-    help="name of the parameter file",
-    default="config.toml"
-)
-
-args, _ = parser.parse_known_args()
-
-with open(args.config, "rb") as f:
-    config = tomllib.load(f)
 
 def generate_coords(nx, ny, name="", length=1):
     """Generate csv files containing the x and y coordinate data for a uniform grid
@@ -229,12 +214,19 @@ def find_indices_rain_garden(input_file, output_file):
     df["y_index"] = pd.to_numeric(df["y_index"], downcast="integer")
     df.to_csv(output_file, header=True, index=False)
 
+def generate_csv_files(nx, ny, length, depth, name):
+    generate_rectangular_coords(nx, ny, name=f"{name}_", x_length=length, y_length=depth)
+    generate_rectangular_padded_coords(nx, ny, name=f"{name}_padded_", x_length=length, y_length=depth)
+    x = torch.tensor(np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')).double()
+    y = torch.tensor(np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')).double()
+    x_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_x_coords.csv", delimiter=',')).double()
+    y_padded = torch.tensor(np.genfromtxt("../data/infiltration_padded_y_coords.csv", delimiter=',')).double()
+
+    return x,y, x_padded, y_padded
+
 
 if __name__ == "__main__":
     # Script to find and include the rain garden
-    dx = config["parameters"]["dx"]
-    nx = config["parameters"]["nx"]
-    ny = config["parameters"]["ny"]
     generate_coords()
     find_xyz_rain_garden("../data/x_coords.csv", "../data/y_coords.csv","../data/malago_height.csv", "../data/rain_garden.csv")
     find_indices_rain_garden("../data/rain_garden.csv", "../data/rain_garden_indices.csv")

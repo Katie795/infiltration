@@ -1,9 +1,7 @@
 ### Coefficients for Richards equation ###
 import torch
 
-
-
-def theta(s):
+def theta_hm(s):
     """theta(s) in the Horung-Messing test. Here
     theta(s) = pi**2/2 - 2 arctan(s)**2 if s < 0,
              = pi**2/2                  if s > 0.
@@ -20,7 +18,7 @@ def theta(s):
     return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
 
 
-def theta_prime(s):
+def theta_prime_hm(s):
     """theta'(s) in the Horung-Messing test. Needed for Newton's method. Here
     theta'(s) = -4 arctan(s) / (s**2 + 1) if s < 0,
               = 0                         if s > 0.
@@ -36,9 +34,9 @@ def theta_prime(s):
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0).to(torch.float64)
 
 
-def Kappa(s):
-    """Kappa(s) in the Horung-Messing test. Here
-    Kappa(s) = 2 / (1 + s**2) if s < 0,
+def kappa_hm(s):
+    """kappa_hm(s) in the Horung-Messing test. Here
+    kappa_hm(s) = 2 / (1 + s**2) if s < 0,
              = 2              if s > 0.
     
     :args s: input where s = x - y - t
@@ -53,8 +51,8 @@ def Kappa(s):
     return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
 
 def Kappa_prime(s):
-    """Kappa'(s) in the Horung-Messing test. Needed for Newton's method. Here
-    Kappa'(s) = -4s / (1 + s**2)**2 if s < 0,
+    """kappa_hm'(s) in the Horung-Messing test. Needed for Newton's method. Here
+    kappa_hm'(s) = -4s / (1 + s**2)**2 if s < 0,
               = 0                   if s > 0.
     
     :args s: input where s = x - y - t
@@ -68,7 +66,7 @@ def Kappa_prime(s):
 
     return ans.unsqueeze(0).unsqueeze(0).to(torch.float64)
 
-def u_exact(x, y, t):
+def u_exact_hm(x, y, t):
     """u_exact in the Horung-Messing test.  Here
     u_exact(x,y,t) = -1/2 s                     if s < 0,
                    = - tan((e^s - 1)/(e^s + 1)) if s > 0.

@@ -1,12 +1,15 @@
 ### Configuration file for Malago road simulation
 
 [parameters]
-dx = 0.02       # the length of an element (m). Needs to fit with length, x and y direction
-length = 4      # length of the rain garden (m)
-depth  = 1.2    # depth of the rain garden (m)
-nx = 200        # number of elements in the x-direction
-ny = 60         # number of elements in the y-direction
-dt = 0.01       # timestep (s)
-T = 1           # total length of time (s)
-save_fig = true # whether to save the results to be post-processed
-n_out = 100     # how often to save results (every n_out timesteps)
+dx = 0.02          # the length of an element (m). Needs to fit with length, x and y direction
+dy = 0.02          # the length of an element (m). Needs to fit with length, x and y direction
+length = 4         # length of the rain garden (m)
+depth  = 1.2       # depth of the rain garden (m)
+nx = 200           # number of elements in the x-direction
+ny = 60            # number of elements in the y-direction
+drain_l = 1.775    # x-coordinate of left hand side drain
+drain_r = 2.225    # y-coordinate of right hand side of drain
+dt = 0.01          # timestep (s)
+T = 1              # total length of time (s)
+save_fig = true    # whether to save the results to be post-processed
+n_out = 100        # how often to save results (every n_out timesteps)

@@ -1,8 +1,6 @@
 ### Module to simulate infiltration through soil
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 indices = np.genfromtxt("data/rain_garden_indices.csv", delimiter=',')[2:, :2]
 indices = indices.astype(np.int64)
@@ -35,27 +33,3 @@ def darcy(values_h, values_h_initial):
     h_new = apply_infiltration(values_h, values_h_initial, q_array2)
 
     return h_new
-
-
-class Infiltration(nn.Module):
-    def __init__(self, w1, w2, w3, wm, bias_initializer, dx, beta, diag):
-        super(Infiltration, self).__init__()
-        self.xadv = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-        self.yadv = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-        self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-        self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-
-        self.diff.weight.data = w1
-        self.xadv.weight.data = w2
-        self.yadv.weight.data = w3
-        self.cmm.weight.data = wm
-
-        self.diff.bias.data = bias_initializer
-        self.xadv.bias.data = bias_initializer
-        self.yadv.bias.data = bias_initializer
-        self.cmm.bias.data = bias_initializer
-        
-        self.dx = dx
-        self.beta = beta
-        self.diag = diag
-
