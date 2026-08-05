@@ -15,6 +15,10 @@ import argparse
 from AI4Flood.richards_solver import *
 from AI4Flood.richards_coefficients import theta_malago, kappa_malago
 from AI4Flood.generate_csv_files import generate_csv_files
+from AI4Flood.misc_functions import clear_output_folder
+
+clear_output_folder("/home/katie795/Flooding_workspace/Shallow_Water_Equations_NN4PDEs/results")
+torch.set_default_dtype(torch.float64)
 
 rainfall_data = np.genfromtxt("../data/Clifton_rain_modifed_for_rainfall_event.csv", delimiter=',')[1:, 0]
 time_data = 60 * 15 * np.array(range(len(rainfall_data)))
@@ -58,7 +62,7 @@ T        = torch.tensor([config["parameters"]["T"]], device=device)
 save_fig = torch.tensor([config["parameters"]["save_fig"]], device=device)
 n_out    = torch.tensor([config["parameters"]["n_out"]], device=device)
 
-x, y, xx, yy = generate_csv_files(nx, ny, length, depth, name="infiltration_")
+x, y, xx, yy = generate_csv_files(nx, ny, length, depth, name="infiltration")
 
 # # # ################################### # # #
 # # # ######    Linear Filter      ###### # # #
@@ -91,14 +95,14 @@ print('Diagonal component:', diag)
 # # # #######   Initialisation ########## # # #
 # # # ################################### # # #
 
-# TODO: better initial condition
-u_old = 0.0 * torch.unsqueeze(torch.unsqueeze(torch.ones_like(x), 0), 0).to(torch.float64)
+# assumption of some equilibrium
+u_old = - torch.unsqueeze(torch.unsqueeze(y, 0), 0).to(torch.float64)
 model = Richards_PC(w1, wm, bias_initializer, yy, dx, dy, theta_malago, kappa_malago, diag=diag, f=0, drain_l=drain_l, drain_r=drain_r).to(device)
 
 t = 0
 i = 0
 start = time.time()
-print("starting timer")
+np.savetxt(f"../results/u_0.csv", u_old.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 
 with torch.no_grad():
     while t < T:
@@ -106,6 +110,7 @@ with torch.no_grad():
         t += dt
         i += 1
         # save figure every n_out timesteps
+
         if save_fig == True and i % n_out == 0:
             np.savetxt(f"../results/u_{int(i/ n_out)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 

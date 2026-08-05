@@ -1,13 +1,16 @@
 # Project infiltration
 
 ## Current focus
+- [] Check BC's are the right way round
+- [] Check u is negative everywhere
 - [] Pick one test case and get it working
+- [] Run infiltration model for rainfall data and generate some plots for the paper
 
 ## Next
 - [] Work through all tests and update them all
 - [] Add more tests to generating csvs
-- [] Check BC's are the right way round
-- [] Check u is negative everywhere
+- [] Set up nonhomogeneous infiltration for illustration coupling shallow water
+
 
 ## Done 
 - [x] Refactor richards_solver into parent and child classes

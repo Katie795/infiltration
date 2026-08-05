@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
 
-def clear_output_folder():
-    folder = '/home/km2560/Workspace/Flooding/results'
+def clear_output_folder(folder):
+
     for filename in os.listdir(folder):
         file_path = os.path.join(folder, filename)
         try:

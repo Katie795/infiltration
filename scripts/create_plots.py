@@ -106,33 +106,45 @@ if args.animate:
 
 if args.animate_malago:
 
-    deepest_arrray = np.genfromtxt(f"../results/u_{args.nfig}.csv", delimiter=',')
-    smallest = np.min(deepest_arrray)
-    largest = np.max(deepest_arrray)
+    # Obtain maximum and minimum values for capillary potential. Maximum will be in original thing
+    potential = np.genfromtxt(f"../results/u_1.csv", delimiter=',')
+
+    min_p = np.min(potential)
+    levels = np.linspace(min_p, 0, 4)
+    plt.rcParams['contour.negative_linestyle'] = 'solid'
+
 
     X = np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')
     Y = np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')
 
-    for i in range(1, int(args.nfig) + 1):
+    for i in range(0, int(args.nfig) + 1):
         Z = np.genfromtxt(f"../results/u_{i}.csv", delimiter=',')
         fig, ax = plt.subplots(1,1, figsize=(16,4.8))
         cmap = plt.colormaps['Blues']
 
-        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=0, vmax=largest, cmap=cmap)
-        cb = plt.colorbar(height, label="pressure head")
+        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=min_p, vmax=0, cmap=cmap)
+        cb = plt.colorbar(height, label=r"Capillary potential $u$")
+        cs = ax.contour(X, Y, Z, levels, linewidths=1, colors="black")
+        ax.clabel(cs,  fontsize=9)
+        ax.set_title("Capillary potential in Malago road rain garden")
+        ax.set_xlabel("Length (m)")
+        ax.set_ylabel("Depth (m)")
         # time is saved every 100 timesteps where each timestep is 0.01 second
 
-        plt.title(f"Time = {dt * n_out * i} s")
+        props = dict(boxstyle='round', facecolor='white', alpha=0.5)
+
+        plt.text(0.80, 1.10, f"Time = {(dt * n_out * i).numpy()[0]} s", transform=ax.transAxes, fontsize=14,
+                verticalalignment='top', bbox=props)
+
         plt.savefig(f"../plots/u_{i}.png")
         plt.close()
 
-
     images = []
-    for i in range(1, int(args.nfig) + 1):
+    for i in range(0, int(args.nfig) + 1):
         images.append(imageio.imread(f"../plots/u_{i}.png"))
-        imageio.mimsave("../plots/malago_infiltration_short.mp4", images)
+        imageio.mimsave("../plots/malago_infiltration_.mp4", images)
 
-    for i in range(1, int(args.nfig) + 1):
+    for i in range(0, int(args.nfig) + 1):
         os.remove(f"../plots/u_{i}.png")
 
 if args.animate_comparison:
