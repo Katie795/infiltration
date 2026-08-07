@@ -8,6 +8,7 @@ import csv
 import datetime
 import torch
 from AI4Flood.misc_functions import *
+from AI4Flood.richards_coefficients import kappa_malago
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config",
@@ -55,9 +56,9 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--flowlines",
+    "--flux",
     action="store_true",
-    help="whether to produce plots with flowlines"
+    help="whether to produce plots with water flux"
 )
 
 parser.add_argument(
@@ -81,7 +82,8 @@ n_out = torch.tensor([config["parameters"]["n_out"]])
 dt    = torch.tensor([config["parameters"]["dt"]])
 dx    = torch.tensor([config["parameters"]["dx"]]) 
 dy    = torch.tensor([config["parameters"]["dy"]])
-
+nx    = torch.tensor([config["parameters"]["nx"]]) 
+ny    = torch.tensor([config["parameters"]["ny"]])
 
 if args.animate:
     X = np.genfromtxt("../data/x_coords.csv", delimiter=',')
@@ -154,17 +156,22 @@ if args.animate_malago:
     for i in range(0, int(args.nfig) + 1):
         os.remove(f"../plots/u_{i}.png")
 
-if args.flowlines:
+if args.flux:
     X = np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')[1:, 1:]
     Y = np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')[1:, 1:]
     Z = np.genfromtxt(f"../results/u_0.csv", delimiter=',')
+    x = np.linspace(0, 4, nx)
+    y = np.linspace(0, 1.2, ny)
 
     for i in range(0, int(args.nfig) + 1):
-        Z = np.genfromtxt(f"../results/u_{i}.csv", delimiter=',')
+        Z = torch.tensor(np.genfromtxt(f"../results/u_{i}.csv", delimiter=','))
         grad_x, grad_y = calculate_grad(Z, dx, dy)
         fig, ax = plt.subplots(1,1, figsize=(16,4.8))
-        q = ax.quiver(X[::5, ::5], Y[::5, ::5], -grad_x[::5, ::5], -grad_y[::5, ::5])
-        plt.title("Infiltration direction")
+
+        q_x = - kappa_malago(Z[:-1, :-1]) * grad_x       # water flux in the x direction
+        q_y = - kappa_malago(Z[:-1, :-1]) * (grad_y + 1) # water flux in the y direction. PLus one for gravity
+        q = ax.quiver(X[::3, ::3], Y[::3, ::3], q_x[::3, ::3], q_y[::3, ::3])
+        plt.title("Infiltration flux")
         plt.savefig(f"../plots/u_quiver_{i}.png")
         plt.close()
 

@@ -114,7 +114,7 @@ class Richards(nn.Module):
         u_new[0,0,-1, cut1:cut2][id_active] = 0 * u_new[0,0,-1, cut1:cut2][id_active] # set to zero!
         u_new[0,0,-1, cut1:cut2][id_inactive] = u_new[0,0,-2, cut1:cut2][id_inactive] # neumann bcs
 
-        u_new[0,0,-1, cut1:cut1] = u_new[0, 0, -2, cut1:cut1] + self.dy * (q / kappa(u_new[:, :, -2, cut1:cut1]) + 1)# inhomogeneous neumann
+        u_new[0,0,-1, cut1:cut2] = u_new[0, 0, -2, cut1:cut2] - self.dy * (q / kappa(u_new[:, :, -2, cut1:cut2]) + 1)# inhomogeneous neumann
 
         return u_new
 

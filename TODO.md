@@ -3,7 +3,7 @@
 ## Current focus
 - [] Run infiltration model for rainfall data and generate some plots for the paper
 - [] Set up timings for simulations on CPUs and GPUs and run it for one day
-- [] Set up contour plot for infiltration
+- [] Set up contour plot for infiltration, is it doing the right thing?
 
 
 ## Next
