@@ -3,7 +3,6 @@
 ## Current focus
 - [] Run infiltration model for rainfall data and generate some plots for the paper
 - [] Set up timings for simulations on CPUs and GPUs and run it for one day
-- [] Set up contour plot for infiltration, is it doing the right thing?
 
 
 ## Next
@@ -20,3 +19,4 @@
 - [x] Check BC's are the right way round
 - [x] Check u is negative everywhere
 - [x] Write tests for the calculate dx functions
+- [x] Set up contour plot for infiltration, is it doing the right thing?
