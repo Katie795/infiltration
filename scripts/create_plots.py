@@ -120,7 +120,7 @@ if args.animate_malago:
     for i in range(0, int(args.nfig) + 1):
         Z = np.genfromtxt(f"../results/u_{i}.csv", delimiter=',')
         fig, ax = plt.subplots(1,1, figsize=(16,4.8))
-        cmap = plt.colormaps['Blues']
+        cmap = plt.colormaps['inferno']
 
         height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=min_p, vmax=0, cmap=cmap)
         cb = plt.colorbar(height, label=r"Capillary potential $u$")
@@ -142,7 +142,7 @@ if args.animate_malago:
     images = []
     for i in range(0, int(args.nfig) + 1):
         images.append(imageio.imread(f"../plots/u_{i}.png"))
-        imageio.mimsave("../plots/malago_infiltration_.mp4", images)
+        imageio.mimsave("../plots/malago_infiltration_4.mp4", images)
 
     for i in range(0, int(args.nfig) + 1):
         os.remove(f"../plots/u_{i}.png")

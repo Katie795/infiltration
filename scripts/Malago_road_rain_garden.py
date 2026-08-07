@@ -22,10 +22,11 @@ torch.set_default_dtype(torch.float64)
 
 rainfall_data = np.genfromtxt("../data/Clifton_rain_modifed_for_rainfall_event.csv", delimiter=',')[1:, 0]
 time_data = 60 * 15 * np.array(range(len(rainfall_data)))
-def rainfall_flux(t):
-    """Interpolated function for rainfall"""
-    return dt * np.interp(t, time_data, rainfall_data) / (1000 * 15 * 60) #converting mm/15mins flux to m/second / timestep
 
+def rainfall_flux(t, dt):
+    """Interpolated function for rainfall"""
+    rainfall = np.interp(t, time_data, rainfall_data)
+    return np.asarray(dt) * rainfall / (1000 * 15 * 60) # converting mm/15mins flux to m/second / timestep
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -42,8 +43,7 @@ with open(args.config, "rb") as f:
     config = tomllib.load(f)
 
 # Check if GPU is available 
-is_gpu = torch.cuda.is_available()
-device = torch.device("cuda" if is_gpu else "cpu")
+device = torch.device(config["parameters"]["device"])
 print(f"Running on device {device}")
 
 # # # ##################################################### # # #
@@ -80,15 +80,14 @@ wm = torch.tensor([[[[0.0], [0.0], [0.0]],
 
 w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
 wm = torch.reshape(wm,(1,1,3,3))
-diag = -np.array(w1.cpu())[0,0,1,1] # diagonal matrix
+diag = -np.array(w1.cpu(), dtype=None, copy=None)[0,0,1,1] # diagonal matrix
 
 # # # ################################### # # #
 # # # ######   Create field (tensor)  ### # # #
 # # # ################################### # # #
 print('============== Numerical parameters ===============')
-print('Time step:', dt.data)
-print('Final time:', T.data)
-print('Initial time:', 0)
+print(f'Time step: {dt.item()} seconds')
+print(f'Final time:  {T.item()} seconds = {T.item() / 3600} hours')
 print('Diagonal component:', diag)
 
 # # # ################################### # # #
@@ -106,7 +105,7 @@ np.savetxt(f"../results/u_0.csv", u_old.cpu().detach().numpy()[0,0,:,:], delimit
 
 with torch.no_grad():
     while t < T:
-        u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=2, q=rainfall_flux(t))
+        u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=2, q=rainfall_flux(t, dt))
         t += dt
         i += 1
         # save figure every n_out timesteps
