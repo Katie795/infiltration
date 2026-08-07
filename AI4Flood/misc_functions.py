@@ -1,7 +1,7 @@
 import os, shutil
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-
+import torch
 
 def clear_output_folder(folder):
 
@@ -32,3 +32,17 @@ def plot_tensor_infiltration(x, y, tensor, name):
     cb = plt.colorbar(height, label=name, ax=ax)
     plt.title(name)
     plt.savefig(f"../plots/{name}")
+
+def calculate_dx(u, dx):
+
+    u_dx = (u[:, 1:] - u[:, :-1]) / dx
+    return u_dx[:-1] # to remain same shape as dy
+
+def calculate_dy(u, dy):
+    u_dy = (u[:-1] - u[1:]) / dy
+    return u_dy[:, :-1] # to remain same shape as dx
+
+def calculate_grad(u, dx, dy):
+    u_dx = calculate_dx(u, dx)
+    u_dy = calculate_dy(u, dy)
+    return u_dx, u_dy

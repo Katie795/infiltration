@@ -7,7 +7,7 @@ import argparse
 import csv
 import datetime
 import torch
-
+from AI4Flood.misc_functions import *
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config",
@@ -55,6 +55,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--flowlines",
+    action="store_true",
+    help="whether to produce plots with flowlines"
+)
+
+parser.add_argument(
     "--animate_comparison",
     action="store_true",
     help="whether to produce an animation of the water depth comparing infiltration and no infiltration"
@@ -73,7 +79,8 @@ with open(args.config, "rb") as f:
 
 n_out = torch.tensor([config["parameters"]["n_out"]])
 dt    = torch.tensor([config["parameters"]["dt"]])
-
+dx    = torch.tensor([config["parameters"]["dx"]]) 
+dy    = torch.tensor([config["parameters"]["dy"]])
 
 
 if args.animate:
@@ -146,6 +153,32 @@ if args.animate_malago:
 
     for i in range(0, int(args.nfig) + 1):
         os.remove(f"../plots/u_{i}.png")
+
+if args.flowlines:
+    X = np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')[1:, 1:]
+    Y = np.genfromtxt("../data/infiltration_y_coords.csv", delimiter=',')[1:, 1:]
+    Z = np.genfromtxt(f"../results/u_0.csv", delimiter=',')
+
+    for i in range(0, int(args.nfig) + 1):
+        Z = np.genfromtxt(f"../results/u_{i}.csv", delimiter=',')
+        grad_x, grad_y = calculate_grad(Z, dx, dy)
+        fig, ax = plt.subplots(1,1, figsize=(16,4.8))
+        q = ax.quiver(X[::5, ::5], Y[::5, ::5], -grad_x[::5, ::5], -grad_y[::5, ::5])
+        plt.title("Infiltration direction")
+        plt.savefig(f"../plots/u_quiver_{i}.png")
+        plt.close()
+
+        images = []
+    for i in range(0, int(args.nfig) + 1):
+        images.append(imageio.imread(f"../plots/u_quiver_{i}.png"))
+        imageio.mimsave("../plots/malago_quiver.mp4", images)
+
+    for i in range(0, int(args.nfig) + 1):
+        os.remove(f"../plots/u_quiver_{i}.png")
+    
+
+
+
 
 if args.animate_comparison:
     X = np.genfromtxt("../data/x_coords.csv", delimiter=',')

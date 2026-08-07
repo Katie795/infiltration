@@ -19,3 +19,4 @@
 - [x] Get test_coefficients working and committed
 - [x] Check BC's are the right way round
 - [x] Check u is negative everywhere
+- [x] Write tests for the calculate dx functions
