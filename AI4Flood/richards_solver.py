@@ -6,7 +6,7 @@ device = torch.device("cuda:0" if is_gpu else "cpu")
 
 
 class Richards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag, f, drain_l, drain_r):
+    def __init__(self, w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag, drain_l=0, drain_r=0):
         super().__init__()
 
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -26,7 +26,6 @@ class Richards(nn.Module):
         self.theta = theta
         self.kappa = kappa
 
-        self.f = f
         self.diag = diag
 
     def create_padding(self, u):
@@ -41,7 +40,7 @@ class Richards(nn.Module):
         return torch.round(value / dx).int()
 
 
-    def apply_dirichlet_bcs(self, u, g=1):
+    def apply_dirichlet_bcs(self, u, g=1, kappa=1, q=0):
         """Applies a boundary condition g to a function u.
         
         :args u: original function over nx x ny grid to which the boundary condition is applied
@@ -108,22 +107,62 @@ class Richards(nn.Module):
         u_new[0,0,-1, :cut1] = u_new[0,0,-2,:cut1] # homogeneous neumann
         u_new[0,0,-1, cut2:] = u_new[0,0,-2,cut2:] # homogeneous neumann
 
-        id_active = u_new[0,0,-1, cut1:cut2] >= 0 
-        id_inactive = u_new[0,0,-1, cut1:cut2] < 0
+        id_active = u_new[0,0,-2, cut1:cut2] >= 0 
+        id_inactive = u_new[0,0,-2, cut1:cut2] < 0
 
         u_new[0,0,-1, cut1:cut2][id_active] = 0 * u_new[0,0,-1, cut1:cut2][id_active] # set to zero!
         u_new[0,0,-1, cut1:cut2][id_inactive] = u_new[0,0,-2, cut1:cut2][id_inactive] # neumann bcs
 
-        u_new[0,0,-1, cut1:cut2] = u_new[0, 0, -2, cut1:cut2] - self.dy * (q / kappa(u_new[:, :, -2, cut1:cut2]) + 1)# inhomogeneous neumann
+        #u_new[0,0,-1, cut1:cut2] = u_new[0, 0, -2, cut1:cut2] - self.dy * (q / kappa(u_new[:, :, -2, cut1:cut2]) + 1)# inhomogeneous neumann
 
         return u_new
 
+    def apply_conditional_bcs(self, u, g=1, kappa=1, q=2):
+        """Applies conditional boundary conditions onto the soil 
+                
+        :args u: original function over nx x ny grid to which the boundary condition is applied
+        :args g: here g is a nx + 2 tensor corresponding to the height of the water!!!
+        
+        :returns uu: nx+2 x ny+2 function"""
+
+
+        # creating tensor
+        u_new = self.create_padding(u)
+
+        u_new[0,0,1:-1, 1:-1] = u # fill interior
+
+        cut1 = self.find_closest_index(self.drain_l, self.dx)
+        cut2 = self.find_closest_index(self.drain_r, self.dx)
+
+        saturated   = u_new[0,0, 1, :] >= 0 
+        unsaturated = u_new[0,0,1,:] < 0
+
+        # TODO: does flux correspond to per unit space or per unit time?
+
+        u_new[0,0,0,:][unsaturated] = u_new[0,0,0,:][unsaturated] + self.dy * (g[unsaturated] / kappa(u_new[:,:,0,:] )[0, 0, unsaturated] + 1) # inhomogeneous neumann in m 
+        u_new[0,0,0,:][saturated] = g[saturated] 
+        u_new[0,0,:,0]   = u_new[0,0,:,1]          # homogeneous neumann  
+        u_new[0,0,:,-1]  = u_new[0,0,:,-2]         # homogeneous neumann
+        u_new[0,0,-1, :cut1] = u_new[0,0,-2,:cut1] + self.dx # homogeneous neumann
+        u_new[0,0,-1, cut2:] = u_new[0,0,-2,cut2:] + self.dx # homogeneous neumann
+
+        id_active = u_new[0,0,-2, cut1:cut2] >= 0 # why are these 
+        id_inactive = u_new[0,0,-2, cut1:cut2] < 0
+
+        u_new[0,0,-1, cut1:cut2][id_active] = 0 * u_new[0,0,-1, cut1:cut2][id_active] # set to zero seepage occurs
+        u_new[0,0,-1, cut1:cut2][id_inactive] = u_new[0,0,-2, cut1:cut2][id_inactive] + self.dx # neumann bcs - no seepage
+
+        #u_new[0,0,-1, cut1:cut2][id_active] = u_new[0, 0, -2, cut1:cut2] - self.dy * (q / kappa(u_new[:, :, -2, cut1:cut2]) + 1)# inhomogeneous neumann
+        # This is not how seeoage boundary conditions are implemented!!
+        return u_new
+
+
 
 class Richards_L(Richards):
-    def __init__(self, w1, wm, bias_initializer, zz, dx, dy,  theta, kappa, f=0, diag=1):
-         super().__init__(w1, wm, bias_initializer, zz, dx, dy, theta, kappa, f=0, diag=1)
+    def __init__(self, w1, wm, bias_initializer, zz, dx, dy,  theta, kappa, diag=1):
+         super().__init__(w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag=1)
 
-    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g=1):
+    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g=1, f=0):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
         # Choose which boundary function to use
@@ -133,6 +172,8 @@ class Richards_L(Richards):
             boundary_function = self.apply_mixed_bcs
         elif boundary_type == "Neumann":
             boundary_function = self.apply_neumann_bcs
+        elif boundary_type == "Conditional":
+            boundary_function = self.apply_conditional_bcs
         else:
             raise Exception("Need to specify Dirichlet, Mixed or Neumann boundary conditions")
 
@@ -140,7 +181,7 @@ class Richards_L(Richards):
 
         uuold = boundary_function(uold, g=g, kappa=self.kappa, q=q)
         
-        if self.f == 0:
+        if f == 0:
             f_new = torch.tensor(0)
         else:
             f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
@@ -158,9 +199,9 @@ class Richards_L(Richards):
             for i in range(ninner):
                 uui = boundary_function(ui, g=g, kappa=self.kappa, q=q) # apply dirichlet boundary condition
     
-                div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj + self.z) * uui)  \
+                div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj + self.zz) * uui)  \
                                          + self.kappa(uj + self.z) * self.diff(uui) \
-                                            - ui * self.diff(self.kappa(uuj + self.z)))
+                                            - ui * self.diff(self.kappa(uuj + self.zz)))
 
                 A = L * ui - dt * div_k_grad_ui
                 D = self.diag * dt + L
@@ -171,11 +212,11 @@ class Richards_L(Richards):
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 
                 if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-12:
-                    print(f"Inner iterations converged after {i+1} iterations")
+                    #print(f"Inner iterations converged after {i+1} iterations")
                     break
 
                 if i == ninner - 1:
-                    print(f"Inner iteration has not converged")
+                    #print(f"Inner iteration has not converged")
                     break
 
                 ui = uiplus.clone()
@@ -185,7 +226,7 @@ class Richards_L(Richards):
                 break
 
             if j == nouter - 1:
-                print(f"Outer iteration has not converged")
+                print(f"Outer iteration has not converged, error is {torch.sqrt(torch.mean((uiplus - uj)**2))}")
                 break
 
             uj = uiplus.clone()        
@@ -193,10 +234,10 @@ class Richards_L(Richards):
         return uiplus    
     
 class Richards_PC(Richards):
-    def __init__(self, w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag, f, drain_l, drain_r):
-         super().__init__(w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag, f, drain_l, drain_r)
+    def __init__(self, w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag, drain_l, drain_r):
+         super().__init__(w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag, drain_l, drain_r)
 
-    def forward(self, uold, t, dt, boundary_type, ninner=1, q=1, g=1):
+    def forward(self, uold, t, dt, boundary_type, ninner=1, q=1, g=1, f=0):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
         L = 5 # lipschitz constant, should be 2.
  
@@ -206,20 +247,20 @@ class Richards_PC(Richards):
             boundary_function = self.apply_mixed_bcs
         elif boundary_type == "Neumann":
             boundary_function = self.apply_neumann_bcs
+        elif boundary_type == "Conditional":
+                    boundary_function = self.apply_conditional_bcs
         else:
-            raise Exception("Need to specify Dirichlet, Mixed or Neumann boundary conditions")
+            raise Exception("Need to specify Dirichlet, Mixed, Neumann or Conditional boundary conditions")
             
         uuold = boundary_function(uold, g=g, kappa=self.kappa, q=q)
 
-        if self.f == 0:
+        if f == 0:
             f_new = torch.tensor(0)
         else:
             f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
 
         ujplus = torch.zeros_like(uold, device=device)
         uj = uold.clone()
-
-
 
         for i in range(ninner):
             # predictor step

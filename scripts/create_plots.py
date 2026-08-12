@@ -50,7 +50,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--animate_malago",
+    "--potential",
     action="store_true",
     help="whether to produce aniamte malago infiltration"
 )
@@ -113,13 +113,15 @@ if args.animate:
     for i in range(1, nfig):
         os.remove(f"../plots/timestep_{i}.png")
 
-if args.animate_malago:
+if args.potential:
 
     # Obtain maximum and minimum values for capillary potential. Maximum will be in original thing
-    potential = np.genfromtxt(f"../results/u_1.csv", delimiter=',')
+    potential1 = np.genfromtxt(f"../results/u_0.csv", delimiter=',')
+    potential2 = np.genfromtxt(f"../results/u_{args.nfig}.csv", delimiter=',')
 
-    min_p = np.min(potential)
-    levels = np.linspace(min_p, 0, 4)
+    min_p = np.min(potential1)
+    max_p = np.max(potential2)
+    levels = np.linspace(min_p, max_p, 5)
     plt.rcParams['contour.negative_linestyle'] = 'solid'
 
 
@@ -131,7 +133,7 @@ if args.animate_malago:
         fig, ax = plt.subplots(1,1, figsize=(16,4.8))
         cmap = plt.colormaps['inferno']
 
-        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=min_p, vmax=0, cmap=cmap)
+        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=min_p, vmax=max_p, cmap=cmap)
         cb = plt.colorbar(height, label=r"Capillary potential $u$")
         cs = ax.contour(X, Y, Z, levels, linewidths=1, colors="black")
         ax.clabel(cs,  fontsize=9)
@@ -144,17 +146,18 @@ if args.animate_malago:
 
         plt.text(0.80, 1.10, f"Time = {(dt * n_out * i).numpy()[0]} s", transform=ax.transAxes, fontsize=14,
                 verticalalignment='top', bbox=props)
+        plt.tight_layout()
 
         plt.savefig(f"../plots/u_{i}.png")
         plt.close()
 
     images = []
-    for i in range(0, int(args.nfig) + 1):
-        images.append(imageio.imread(f"../plots/u_{i}.png"))
-        imageio.mimsave("../plots/malago_infiltration_4.mp4", images)
+    #for i in range(0, int(args.nfig) + 1):
+    #    images.append(imageio.imread(f"../plots/u_{i}.png"))
+    #    imageio.mimsave("../plots/malago_infiltration_4.mp4", images)
 
-    for i in range(0, int(args.nfig) + 1):
-        os.remove(f"../plots/u_{i}.png")
+    #for i in range(0, int(args.nfig) + 1):
+    #    os.remove(f"../plots/u_{i}.png")
 
 if args.flux:
     X = np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')[1:, 1:]
@@ -172,16 +175,17 @@ if args.flux:
         q_y = - kappa_malago(Z[:-1, :-1]) * (grad_y + 1) # water flux in the y direction. PLus one for gravity
         q = ax.quiver(X[::3, ::3], Y[::3, ::3], q_x[::3, ::3], q_y[::3, ::3])
         plt.title("Infiltration flux")
+        plt.tight_layout()
         plt.savefig(f"../plots/u_quiver_{i}.png")
         plt.close()
 
         images = []
-    for i in range(0, int(args.nfig) + 1):
-        images.append(imageio.imread(f"../plots/u_quiver_{i}.png"))
-        imageio.mimsave("../plots/malago_quiver.mp4", images)
+    #for i in range(0, int(args.nfig) + 1):
+    #    images.append(imageio.imread(f"../plots/u_quiver_{i}.png"))
+    #    imageio.mimsave("../plots/malago_quiver.mp4", images)
 
-    for i in range(0, int(args.nfig) + 1):
-        os.remove(f"../plots/u_quiver_{i}.png")
+    #for i in range(0, int(args.nfig) + 1):
+    #    os.remove(f"../plots/u_quiver_{i}.png")
     
 
 

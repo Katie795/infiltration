@@ -1,7 +1,6 @@
 """Multple plots for mesh refinement for Horung-Messing problem."""
 import numpy as np
 import torch
-import torch.nn as nn
 from AI4Flood.richards_solver import *
 
 torch.set_default_dtype(torch.float64)

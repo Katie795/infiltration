@@ -105,7 +105,8 @@ np.savetxt(f"../results/u_0.csv", u_old.cpu().detach().numpy()[0,0,:,:], delimit
 
 with torch.no_grad():
     while t < T:
-        u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=2, q=rainfall_flux(t, dt))
+        
+        u_new = model(u_old, t, dt, boundary_type="Conditional", ninner=2, q=rainfall_flux(t, dt), g=g)
         t += dt
         i += 1
         # save figure every n_out timesteps

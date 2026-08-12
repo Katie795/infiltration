@@ -22,6 +22,7 @@ def plot_tensor(x, y, tensor, name):
     cb = plt.colorbar(height, label=name, ax=ax)
     plt.title(name)
     plt.savefig(f"../plots/{name}")
+    plt.close()
 
 def plot_tensor_infiltration(x, y, tensor, name):
     fig, ax = plt.subplots(1,1, figsize=(16,4.8))

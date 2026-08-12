@@ -2,14 +2,14 @@
 
 ## Current focus
 - [] Run infiltration model for rainfall data and generate some plots for the paper
-- [] Set up timings for simulations on CPUs and GPUs and run it for one day
-
+- [] Work through all tests and update them all
+- [] Set up nonhomogeneous infiltration for illustration coupling shallow water - ponding allowed
 
 ## Next
-- [] Work through all tests and update them all
 - [] Add more tests to generating csvs
-- [] Set up nonhomogeneous infiltration for illustration coupling shallow water - ponding allowed
 - [] Pick one test case and get it working
+- [] Make the code CUDA friendly
+- [] Write FEM solver for Richards to compare runtime
 
 ## Done 
 - [x] Refactor richards_solver into parent and child classes
@@ -20,3 +20,4 @@
 - [x] Check u is negative everywhere
 - [x] Write tests for the calculate dx functions
 - [x] Set up contour plot for infiltration, is it doing the right thing?
+- [x] Set up timings for simulations on CPUs and GPUs and run it for one day
