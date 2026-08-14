@@ -32,6 +32,7 @@ class Richards(nn.Module):
         """Creates a zero tensor with padding"""
         ny = u.shape[2]
         nx = u.shape[3]
+        uu = torch.nn.functional.pad(u, (1, 1, 1, 1), mode='constant', value=0)
         input_shape = (1, 1, ny + 2, nx + 2) 
         u_new = torch.zeros(input_shape)
         return u_new
@@ -162,7 +163,7 @@ class Richards_L(Richards):
     def __init__(self, w1, wm, bias_initializer, zz, dx, dy,  theta, kappa, diag=1):
          super().__init__(w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag=1)
 
-    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g=1, f=0):
+    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g=1, f=0, xx=1, yy=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
         # Choose which boundary function to use
@@ -184,7 +185,7 @@ class Richards_L(Richards):
         if f == 0:
             f_new = torch.tensor(0)
         else:
-            f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
+            f_new = f(xx[1:-1, 1:-1], yy[1:-1, 1:-1], t + dt)
 
         for j in range(nouter):
 
@@ -212,7 +213,7 @@ class Richards_L(Richards):
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 
                 if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-12:
-                    #print(f"Inner iterations converged after {i+1} iterations")
+                    print(f"Inner iterations converged after {i+1} iterations")
                     break
 
                 if i == ninner - 1:

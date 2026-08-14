@@ -1,9 +1,9 @@
 # Project infiltration
 
 ## Current focus
-- [] Run infiltration model for rainfall data and generate some plots for the paper
 - [] Work through all tests and update them all
-- [] Set up nonhomogeneous infiltration for illustration coupling shallow water - ponding allowed
+- [] Write FEM solver for Richards to compare runtime
+- [] Get Horung-messing test working
 
 ## Next
 - [] Add more tests to generating csvs
@@ -21,3 +21,5 @@
 - [x] Write tests for the calculate dx functions
 - [x] Set up contour plot for infiltration, is it doing the right thing?
 - [x] Set up timings for simulations on CPUs and GPUs and run it for one day
+- [x] Set up nonhomogeneous infiltration for illustration coupling shallow water - ponding allowed
+- [x] Run infiltration model for rainfall data and generate some plots for the paper
