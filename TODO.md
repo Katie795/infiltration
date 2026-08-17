@@ -1,9 +1,10 @@
 # Project infiltration
 
 ## Current focus
-- [] Work through all tests and update them all
-- [] Write FEM solver for Richards to compare runtime
 - [] Get Horung-messing test working
+- [] Write FEM solver for Richards to compare runtime
+- [] Work through all tests and update them all
+- [] Include U-net in solver
 
 ## Next
 - [] Add more tests to generating csvs
