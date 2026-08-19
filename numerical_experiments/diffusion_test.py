@@ -9,12 +9,12 @@ from AI4Flood.misc_functions import *
 torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
-nx_array = torch.tensor([10, 20, 40])# numer of elements in each edge of mesh
-dt_array = 0.1 * torch.tensor([0.01])            # timestep array
-length = 1                                    # domain is [0, 1] x [0, 1]
-T = 0.001                                      # total length of time
-KAPPA = False                                  # whether to include nonlinear kappa
-PC = True
+nx_array = torch.tensor([10, 20, 40]) # number of elements in each edge of mesh
+dt_array = 0.1 * torch.tensor([0.01]) # timestep array
+length = 1                            # domain is [0, 1] x [0, 1]
+T = 0.001                             # total length of time
+#KAPPA = False                        # whether to include nonlinear kappa
+PC = False                            # predictor corrector method or L method
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -26,9 +26,6 @@ L2_error_dx = []
 niterations = []
 L2_error = []
 
-def Kappa(s):
-    return s**2 + 1
-
 def Kappa1(s):
     return torch.ones_like(s)
 
@@ -39,21 +36,6 @@ def u_exact(x, y, t):
     u_exact = torch.exp(-torch.tensor(t)) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
 
     return torch.unsqueeze(torch.unsqueeze(u_exact, 0), 0)
-
-#def f(x, y, t):
-#    f = - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
-#        (1 - 2 * torch.pi ** 2) + torch.pi ** 2 * torch.exp(-2 * t ) * (
-#            torch.sin(torch.pi * y) ** 2 * (2 * torch.cos(torch.pi * x) ** 2 - torch.sin(torch.pi * y) ** 2)
-#            + torch.sin(torch.pi * x) ** 2 * (2 * torch.cos(torch.pi * y) ** 2 - torch.sin(torch.pi * x) ** 2)
-#        )
-#    )
-#
-#    f2 = - 2 * torch.pi ** 2 * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
- #       torch.exp(-2*t) * (torch.sin(torch.pi * x )**2 + torch.sin(torch.pi * y )**2
-#                           - 3 * torch.sin(torch.pi * x )**2 * torch.sin(torch.pi * y )**2)
-#     - 1) - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
-    
- #   return f2
 
 def f1(x, y, t):
     return (2 * torch.pi ** 2 - 1 ) * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
@@ -68,20 +50,20 @@ with torch.no_grad():
             x, y, xx, yy = generate_csv_files(nx, nx, length, length, name="testing")
             zz = torch.zeros_like(yy)
 
-            u_init = u_exact(x,y,0)# initial condition
+            u_init = u_exact(x,y,0) # initial condition
             uj   = u_init.clone()   # 
             uold = u_init.clone()
 
-            if KAPPA == True:
-                model = Richards_L(zz, dx, dx, theta, Kappa)
+            if PC == True:
+                model = Richards_PC(zz, dx, dx, theta, Kappa1)
             else:
-                model = RichardsSimple(zz,  dx, dx, theta, Kappa1)
+                model = Richards_L(zz,  dx, dx, theta, Kappa1)
 
             g = torch.zeros((1, 1, nx+3, nx+3))
 
             while t < T:
-                if KAPPA == True:
-                    u_new = model(uold, t, dt, L=5, ninner=100, nouter=100, boundary_type="Dirichlet", omega=0.5, g=g, f=f, xx=xx, yy=yy)
+                if PC == True:
+                    u_new = model(uold, t, dt, ninner=100, boundary_type="Dirichlet",  g=g, f=f1, xx=xx, yy=yy)
                 else:
                     u_new = model(uold, t, dt, L=5, ninner=100, nouter=100, boundary_type="Dirichlet", omega=0.5, g=g, f=f1, xx=xx, yy=yy)
                 t += dt
@@ -102,7 +84,6 @@ with torch.no_grad():
             print(u_exact(x, y, t)[0,0,-1,:])
             print(u_exact(x, y, t)[0,0,:,0])
             print(u_exact(x, y, t)[0,0,:,-1])
-
 
             plot_tensor(xx, yy, u_exact(xx,yy, t)[0,0,:,:].cpu().numpy(), "exact_solution")
             plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
@@ -134,7 +115,26 @@ ax2.set_xlabel(r"$\tau$", fontsize=12)
 ax2.set_ylabel(r"$L^2$ error", fontsize=12)
 ax2.legend(fontsize=12)
 plt.tight_layout()
-if KAPPA == True:
-    plt.savefig(f"../plots/errors_KAPPA.png")
+if PC == True:
+    plt.savefig(f"../plots/errors_PC.png")
 else:
-    plt.savefig(f"../plots/errors_NO_KAPPA.png")
+    plt.savefig(f"../plots/errors_L.png")
+
+
+#def f(x, y, t):
+#    f = - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
+#        (1 - 2 * torch.pi ** 2) + torch.pi ** 2 * torch.exp(-2 * t ) * (
+#            torch.sin(torch.pi * y) ** 2 * (2 * torch.cos(torch.pi * x) ** 2 - torch.sin(torch.pi * y) ** 2)
+#            + torch.sin(torch.pi * x) ** 2 * (2 * torch.cos(torch.pi * y) ** 2 - torch.sin(torch.pi * x) ** 2)
+#        )
+#    )
+#
+#    f2 = - 2 * torch.pi ** 2 * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
+ #       torch.exp(-2*t) * (torch.sin(torch.pi * x )**2 + torch.sin(torch.pi * y )**2
+#                           - 3 * torch.sin(torch.pi * x )**2 * torch.sin(torch.pi * y )**2)
+#     - 1) - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
+    
+ #   return f2
+
+ #def Kappa(s):
+ #   return s**2 + 1
