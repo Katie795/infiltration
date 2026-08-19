@@ -11,10 +11,10 @@ torch.set_default_dtype(torch.float64)
 ### Variables that can be changed ###
 nx_array = torch.tensor([10, 20, 40])# numer of elements in each edge of mesh
 dt_array = 0.1 * torch.tensor([0.01])            # timestep array
-length = 1                                    # domain is [0, 10] x [0, 10]
+length = 1                                    # domain is [0, 1] x [0, 1]
 T = 0.001                                      # total length of time
-KAPPA = True                                  # whether to include nonlinear kappa
-PC = False
+KAPPA = False                                  # whether to include nonlinear kappa
+PC = True
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -22,14 +22,9 @@ device = torch.device("cuda:0" if is_gpu else "cpu")
 print(f"Running on device {device}")
 
 ### iterates, lists and functions ###
-bias_initializer = torch.tensor([0.0], device=device).double()
 L2_error_dx = []
 niterations = []
-
 L2_error = []
-
-#def theta(s):
-#    return torch.ones_like(s)
 
 def Kappa(s):
     return s**2 + 1
@@ -45,20 +40,20 @@ def u_exact(x, y, t):
 
     return torch.unsqueeze(torch.unsqueeze(u_exact, 0), 0)
 
-def f(x, y, t):
-    f = - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
-        (1 - 2 * torch.pi ** 2) + torch.pi ** 2 * torch.exp(-2 * t ) * (
-            torch.sin(torch.pi * y) ** 2 * (2 * torch.cos(torch.pi * x) ** 2 - torch.sin(torch.pi * y) ** 2)
-            + torch.sin(torch.pi * x) ** 2 * (2 * torch.cos(torch.pi * y) ** 2 - torch.sin(torch.pi * x) ** 2)
-        )
-    )
-
-    f2 = - 2 * torch.pi ** 2 * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
-        torch.exp(-2*t) * (torch.sin(torch.pi * x )**2 + torch.sin(torch.pi * y )**2
-                           - 3 * torch.sin(torch.pi * x )**2 * torch.sin(torch.pi * y )**2)
-     - 1) - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
+#def f(x, y, t):
+#    f = - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
+#        (1 - 2 * torch.pi ** 2) + torch.pi ** 2 * torch.exp(-2 * t ) * (
+#            torch.sin(torch.pi * y) ** 2 * (2 * torch.cos(torch.pi * x) ** 2 - torch.sin(torch.pi * y) ** 2)
+#            + torch.sin(torch.pi * x) ** 2 * (2 * torch.cos(torch.pi * y) ** 2 - torch.sin(torch.pi * x) ** 2)
+#        )
+#    )
+#
+#    f2 = - 2 * torch.pi ** 2 * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
+ #       torch.exp(-2*t) * (torch.sin(torch.pi * x )**2 + torch.sin(torch.pi * y )**2
+#                           - 3 * torch.sin(torch.pi * x )**2 * torch.sin(torch.pi * y )**2)
+#     - 1) - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
     
-    return f2
+ #   return f2
 
 def f1(x, y, t):
     return (2 * torch.pi ** 2 - 1 ) * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
@@ -71,28 +66,16 @@ with torch.no_grad():
             dx = length / nx
 
             x, y, xx, yy = generate_csv_files(nx, nx, length, length, name="testing")
+            zz = torch.zeros_like(yy)
 
-            u_init = u_exact(x,y,0).double() # initial condition
+            u_init = u_exact(x,y,0)# initial condition
             uj   = u_init.clone()   # 
             uold = u_init.clone()
 
-            w1 = torch.tensor([[[[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]],
-                        [[-1/3/dx**2], [8/3/dx**2], [-1/3/dx**2]],
-                        [[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]]]], device=device).double()
-            
-            wm = torch.tensor([[[[0.0], [0.0], [0.0]],
-                            [[0.0], [1.0], [0.0]],
-                            [[0.0], [0.0], [0.0]]]], device=device).double()
-
-            w1 = torch.reshape(w1,(1,1,3,3)).double() # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
-            wm = torch.reshape(wm,(1,1,3,3)).double()
-
-            diag = 8/3/dx**2
-
             if KAPPA == True:
-                model = Richards_L(w1, wm, bias_initializer, yy, dx, dx, theta, Kappa, diag).to(device)
+                model = Richards_L(zz, dx, dx, theta, Kappa)
             else:
-                model = Richards_L(w1, wm, bias_initializer, yy,  dx, dx, theta, Kappa1, diag).to(device)
+                model = RichardsSimple(zz,  dx, dx, theta, Kappa1)
 
             g = torch.zeros((1, 1, nx+3, nx+3))
 
