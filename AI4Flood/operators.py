@@ -5,17 +5,17 @@ import torch
 def get_weights_linear_2D(dx):
     # Isotropic Laplacian  # TODO: make this vary in dy as well
     # TODO: is this the right sign?
-    w_diff = torch.tensor([[[[-1/3/dx**2], # Diffusion operator
-                         [-1/3/dx**2], 
-                         [-1/3/dx**2]],
+    w_diff = torch.tensor([[[[1/3/dx**2], # Diffusion operator
+                         [1/3/dx**2], 
+                         [1/3/dx**2]],
 
-                        [[-1/3/dx**2], 
-                         [8/3/dx**2], 
-                         [-1/3/dx**2]],
+                        [[1/3/dx**2], 
+                         [-8/3/dx**2], 
+                         [1/3/dx**2]],
 
-                        [[-1/3/dx**2],
-                         [-1/3/dx**2], 
-                         [-1/3/dx**2]]]])
+                        [[1/3/dx**2],
+                         [1/3/dx**2], 
+                         [1/3/dx**2]]]])
 
     wm1 = torch.tensor([[[[0.0], # Mass operator
                          [0.0], 
@@ -45,7 +45,7 @@ def get_weights_linear_2D(dx):
     wm1 = torch.reshape(wm1,(1,1,3,3))
     wm2 = torch.reshape(wm1,(1,1,3,3))
 
-    diag = -np.array(wm1.cpu(), dtype=None, copy=None)[0,0,1,1] # diagonal matrix
+    diag = -np.array(w_diff.cpu(), dtype=None, copy=None)[0,0,1,1] # diagonal matrix
 
     bias = torch.tensor([0.0])
 

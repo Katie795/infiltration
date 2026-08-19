@@ -177,23 +177,22 @@ class Richards_L(Richards):
             uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q)
 
             # Right hand side of Jacobi iteration - fixed
-            #b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
-            b = L * uj + dt * f_new + self.cmm(uuold - uuj)
+            b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
 
             for i in range(ninner):
                 uui = boundary_function(ui, g=g, kappa=self.kappa, q=q) # apply dirichlet boundary condition
     
-                #div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj + self.zz) * uui)  \
-                #                         + self.kappa(uj + self.z) * self.diff(uui) \
-                #                            - ui * self.diff(self.kappa(uuj + self.zz)))
+                div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj + self.zz) * uui)  \
+                                         + self.kappa(uj + self.z) * self.diff(uui) \
+                                            - ui * self.diff(self.kappa(uuj + self.zz)))
 
-                div_k_grad_ui = - self.diff(uui)
+                div_k_grad_ui = self.diff(uui)
 
-                Au = L * ui + dt * div_k_grad_ui
+                A = L * ui - dt * div_k_grad_ui
                 D = torch.tensor([self.diag * dt + L])
 
-                #uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration
-                uiplus = jacobi2(Au, b, ui, D,  maxiterations=1)
+                #uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration # omega = 1 does not work!!!
+                uiplus = jacobi2(A, b, ui, D,  maxiterations=1) # These solvers give exactly the same thing
 
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
@@ -253,11 +252,11 @@ class Richards_PC(Richards):
             # predictor step
             uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q)
             # this is like a forward euler scheme
-            #div_k_grad_uj = - 0.5 * (self.diff(self.kappa(uuj) * (uuj + self.zz)) \
-            #                         + self.kappa(uj) * self.diff(uuj + self.zz) \
-            #                              - (uj + self.z)* self.diff(self.kappa(uuj)))
+            div_k_grad_uj = 0.5 * (self.diff(self.kappa(uuj) * (uuj + self.zz)) \
+                                     + self.kappa(uj) * self.diff(uuj + self.zz) \
+                                          - (uj + self.z)* self.diff(self.kappa(uuj)))
 
-            div_k_grad_uj = - self.diff(uuj)
+            #div_k_grad_uj = self.diff(uuj)
 
             RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) + dt * div_k_grad_uj + dt * f_new
             ujstar =  uj + 1 / L * RHS
@@ -268,15 +267,15 @@ class Richards_PC(Richards):
             ujpred = 0.5 * (uold + ujstar)
             uujpred = boundary_function(ujpred, g=g, kappa=self.kappa, q=q)
 
-            #div_k_grad_uj_pred = - 0.5 * (self.diff(self.kappa(uujpred) * (uujpred + self.zz)) \
-            #                              + self.kappa(ujpred) * self.diff(uujpred + self.zz) \
-            #                                - (ujpred + self.z)* self.diff(self.kappa(uujpred)))
+            div_k_grad_uj_pred = 0.5 * (self.diff(self.kappa(uujpred) * (uujpred + self.zz)) \
+                                          + self.kappa(ujpred) * self.diff(uujpred + self.zz) \
+                                            - (ujpred + self.z)* self.diff(self.kappa(uujpred)))
 
-            div_k_grad_uj_pred = - self.diff(uujpred)
+            #div_k_grad_uj_pred = self.diff(uujpred)
 
             RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar)) + dt * div_k_grad_uj_pred
             ujplus = (uj + 1 / L * RHS_pred).clone()
-            #ujplus = self.apply_malago_infiltration_bcs(ujplus, q)
+
 
             assert torch.isinf(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
             assert torch.isnan(torch.sqrt(torch.mean((ujplus - uj)**2))) == False

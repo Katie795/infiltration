@@ -7,11 +7,11 @@ from AI4Flood.richards_coefficients import u_exact_hm, kappa_hm, theta_hm
 from AI4Flood.misc_functions import *
 
 ### Variables that can be changed ###
-T = 0.1                                      # total length of time
+T = 0.001                                      # total length of time
 nx_array = torch.tensor([10, 20, 40, 80, 160])# numer of elements in each edge of mesh
 #dt_array = torch.tensor([0.001, 0.0005, 0.0002, 0.0001])            # timestep array
 dt_array = torch.tensor([T, 0.5 * T, 0.2 * T, 0.1 * T])            # timestep array
-T_array = torch.tensor([0.001, 0.002, 0.004, 0.008])
+#T_array = torch.tensor([0.001, 0.002, 0.004, 0.008])
 length = 10                                    # domain is [0, 10] x [0, 10]
 PC = False                                      # whether to use predictor corrector method
 
@@ -96,6 +96,6 @@ ax2.set_ylabel(r"$L^2$ error", fontsize=12)
 ax2.legend(fontsize=12)
 plt.tight_layout()
 if PC == True:
-    plt.savefig(f"../plots/errors_PC_T={T}.png")
+    plt.savefig(f"../plots/horung_messing_PC_T={T}.png")
 else:
-    plt.savefig(f"../plots/errors_T={T}.png")
+    plt.savefig(f"../plots/horung_messing_L_T={T}.png")

@@ -26,7 +26,7 @@ L2_error_dx = []
 niterations = []
 L2_error = []
 
-def Kappa1(s):
+def Kappa(s):
     return torch.ones_like(s)
 
 def theta(s):
@@ -55,9 +55,9 @@ with torch.no_grad():
             uold = u_init.clone()
 
             if PC == True:
-                model = Richards_PC(zz, dx, dx, theta, Kappa1)
+                model = Richards_PC(zz, dx, dx, theta, Kappa)
             else:
-                model = Richards_L(zz,  dx, dx, theta, Kappa1)
+                model = Richards_L(zz,  dx, dx, theta, Kappa)
 
             g = torch.zeros((1, 1, nx+3, nx+3))
 
@@ -104,21 +104,21 @@ marker = ["o", "x", "s", "^", ">"]
 fig, (ax1, ax2) = plt.subplots(1,2, figsize=(14,6))
 for i in range(len(L2_error)):
     ax1.loglog(dx, L2_error[i], linestyle="dashed", marker=marker[i], label=rf"$\Delta t = {dt_array[i]:.6f}$")
-ax1.plot(dx, 0.0001 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+ax1.plot(dx, 10 *  dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax1.set_xlabel(r"$\Delta x$", fontsize=12)
 ax1.set_ylabel(r"$L^2$ error", fontsize=12)
 ax1.legend(fontsize=12)
 for j in range(len(L2_error[0])):
     ax2.loglog(dt_array.cpu().numpy(), L2_error[:,j], linestyle="dashed", marker=marker[j], label=rf"$\Delta x = {dx[j]}$")
-ax2.plot(dt, 0.001 * dt, color="black", linestyle="dotted", label=r"Slope $= -1$" )
+ax2.plot(dt, 10 * dt, color="black", linestyle="dotted", label=r"Slope $= -1$" )
 ax2.set_xlabel(r"$\tau$", fontsize=12)
 ax2.set_ylabel(r"$L^2$ error", fontsize=12)
 ax2.legend(fontsize=12)
 plt.tight_layout()
 if PC == True:
-    plt.savefig(f"../plots/errors_PC.png")
+    plt.savefig(f"../plots/diffusion_PC.png")
 else:
-    plt.savefig(f"../plots/errors_L.png")
+    plt.savefig(f"../plots/diffusion_L.png")
 
 
 #def f(x, y, t):
