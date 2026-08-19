@@ -62,10 +62,11 @@ with torch.no_grad():
             g = torch.zeros((1, 1, nx+3, nx+3))
 
             while t < T:
+                g = u_exact(xx,yy,t + dt)
                 if PC == True:
                     u_new = model(uold, t, dt, ninner=100, boundary_type="Dirichlet",  g=g, f=f1, xx=xx, yy=yy)
                 else:
-                    u_new = model(uold, t, dt, L=5, ninner=100, nouter=100, boundary_type="Dirichlet", omega=0.5, g=g, f=f1, xx=xx, yy=yy)
+                    u_new = model(uold, t, dt, L=5, ninner=200, nouter=200, boundary_type="Dirichlet", omega=0.5, g=g, f=f1, xx=xx, yy=yy)
                 t += dt
                 if t >= T:
                     print("t has reached the final time!")

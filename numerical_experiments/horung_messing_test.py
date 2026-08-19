@@ -51,7 +51,7 @@ with torch.no_grad():
                 model = Richards_L(zz,  dx, dx, theta_hm, kappa_hm)
 
             while t < T:
-                u_exact = u_exact_hm(xx,yy,t)
+                u_exact = u_exact_hm(xx,yy,t+dt)
                 u_new = model(uold, t, dt, ninner=10, boundary_type="Dirichlet", g=u_exact)
                 t += dt
                 if t >= T:
