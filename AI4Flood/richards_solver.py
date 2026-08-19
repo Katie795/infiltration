@@ -1,20 +1,11 @@
 import torch
 import torch.nn as nn
-
-is_gpu = torch.cuda.is_available()
-device = torch.device("cuda:0" if is_gpu else "cpu")
-
+from AI4Flood.operators import get_weights_linear_2D
+from AI4Flood.misc_functions import jacobi, jacobi2
 
 class Richards(nn.Module):
-    def __init__(self, w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag, drain_l=0, drain_r=0):
+    def __init__(self, zz, dx, dy, theta, kappa, drain_l=0, drain_r=0):
         super().__init__()
-
-        self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-        self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
-        self.diff.weight.data = w1
-        self.cmm.weight.data = wm
-        self.diff.bias.data = bias_initializer
-        self.cmm.bias.data = bias_initializer
 
         self.zz = zz
         self.z = zz[1:-1, 1:-1]
@@ -26,19 +17,19 @@ class Richards(nn.Module):
         self.theta = theta
         self.kappa = kappa
 
+        [w_diff, wm1, diag, bias] = get_weights_linear_2D(self.dx)
+        
+        self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.diff.weight.data = w_diff
+        self.cmm.weight.data = wm1
+        self.diff.bias.data = bias
+        self.cmm.bias.data = bias
         self.diag = diag
 
-    def create_padding(self, u):
-        """Creates a zero tensor with padding"""
-        ny = u.shape[2]
-        nx = u.shape[3]
-        uu = torch.nn.functional.pad(u, (1, 1, 1, 1), mode='constant', value=0)
-        input_shape = (1, 1, ny + 2, nx + 2) 
-        u_new = torch.zeros(input_shape)
-        return u_new
+        self.res = nn.Conv2d(1, 1, kernel_size=2, stride=2, padding=0) # restriction
+        self.prol = nn.Sequential(nn.Upsample(scale_factor=2, mode="nearest")) # prolongation
 
-    def find_closest_index(self, value, dx):
-        return torch.round(value / dx).int()
 
 
     def apply_dirichlet_bcs(self, u, g=1, kappa=1, q=0):
@@ -49,10 +40,8 @@ class Richards(nn.Module):
         
         :returns uu: nx+2 x ny+2 function with u in interior cells and g on padded cells."""
 
-        # creating tensor
-        u_new = self.create_padding(u)
-
-        u_new[0,0,1:-1, 1:-1] = u # fill interior
+        # adding padding to tensor
+        u_new = torch.nn.functional.pad(u, (1,1,1,1), mode="constant", value=0)
 
         u_new[0,0,0,:] = g[0,0,0,:]    # top dirichlet
         u_new[0,0,:,0] = g[0,0,:,0]    # left dirichlet
@@ -69,10 +58,8 @@ class Richards(nn.Module):
         
         :returns uu: nx+2 x ny+2 function"""
 
-        # creating tensor
-        u_new = self.create_padding(u)
-
-        u_new[0,0,1:-1, 1:-1] = u # fill interior
+        # adding padding to tensor
+        u_new = torch.nn.functional.pad(u, (1,1,1,1), mode="constant", value=0)
 
         cut1 = self.find_closest_index(self.drain_l, self.dx)
         cut2 = self.find_closest_index(self.drain_r, self.dx)
@@ -94,10 +81,8 @@ class Richards(nn.Module):
         
         :returns uu: nx+2 x ny+2 function"""
 
-        # creating tensor
-        u_new = self.create_padding(u)
-
-        u_new[0,0,1:-1, 1:-1] = u # fill interior
+        # adding padding to tensor
+        u_new = torch.nn.functional.pad(u, (1,1,1,1), mode="constant", value=0)
 
         cut1 = self.find_closest_index(self.drain_l, self.dx)
         cut2 = self.find_closest_index(self.drain_r, self.dx)
@@ -128,9 +113,8 @@ class Richards(nn.Module):
 
 
         # creating tensor
-        u_new = self.create_padding(u)
-
-        u_new[0,0,1:-1, 1:-1] = u # fill interior
+        # adding padding to tensor
+        u_new = torch.nn.functional.pad(u, (1,1,1,1), mode="constant", value=0)
 
         cut1 = self.find_closest_index(self.drain_l, self.dx)
         cut2 = self.find_closest_index(self.drain_r, self.dx)
@@ -157,11 +141,9 @@ class Richards(nn.Module):
         # This is not how seeoage boundary conditions are implemented!!
         return u_new
 
-
-
 class Richards_L(Richards):
-    def __init__(self, w1, wm, bias_initializer, zz, dx, dy,  theta, kappa, diag=1):
-         super().__init__(w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag=1)
+    def __init__(self, zz, dx, dy,  theta, kappa, drain_l=0, drain_r=0):
+         super().__init__(zz, dx, dy, theta, kappa, drain_l=0, drain_r=0)
 
     def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g=1, f=0, xx=1, yy=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
@@ -189,26 +171,30 @@ class Richards_L(Richards):
 
         for j in range(nouter):
 
-            uiplus = torch.zeros_like(uj, device=device) # set up jacobi iteration
+            uiplus = torch.zeros_like(uj) # set up jacobi iteration
             ui = uj.clone()
 
             uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q)
 
             # Right hand side of Jacobi iteration - fixed
-            b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
+            #b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
+            b = L * uj + dt * f_new + self.cmm(uuold - uuj)
 
             for i in range(ninner):
                 uui = boundary_function(ui, g=g, kappa=self.kappa, q=q) # apply dirichlet boundary condition
     
-                div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj + self.zz) * uui)  \
-                                         + self.kappa(uj + self.z) * self.diff(uui) \
-                                            - ui * self.diff(self.kappa(uuj + self.zz)))
+                #div_k_grad_ui = - 0.5 * (self.diff(self.kappa(uuj + self.zz) * uui)  \
+                #                         + self.kappa(uj + self.z) * self.diff(uui) \
+                #                            - ui * self.diff(self.kappa(uuj + self.zz)))
 
-                A = L * ui - dt * div_k_grad_ui
-                D = self.diag * dt + L
+                div_k_grad_ui = - self.diff(uui)
 
-                uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration
-                
+                Au = L * ui + dt * div_k_grad_ui
+                D = torch.tensor([self.diag * dt + L])
+
+                #uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration
+                uiplus = jacobi2(Au, b, ui, D,  maxiterations=1)
+
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 
@@ -233,10 +219,87 @@ class Richards_L(Richards):
             uj = uiplus.clone()        
 
         return uiplus    
+
     
+class RichardsSimple(Richards):
+    def __init__(self, zz, dx, dy,  theta, kappa, drain_l=0, drain_r=0):
+         super().__init__(zz, dx, dy, theta, kappa, drain_l=0, drain_r=0)
+
+    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g=1, f=0, xx=1, yy=1):
+        """Here we use a Jacobi iteration with an L method to solve richard's equation."""
+
+        # Choose which boundary function to use
+        if boundary_type == "Dirichlet":
+            boundary_function = self.apply_dirichlet_bcs
+        elif boundary_type == "Mixed":
+            boundary_function = self.apply_mixed_bcs
+        elif boundary_type == "Neumann":
+            boundary_function = self.apply_neumann_bcs
+        elif boundary_type == "Conditional":
+            boundary_function = self.apply_conditional_bcs
+        else:
+            raise Exception("Need to specify Dirichlet, Mixed or Neumann boundary conditions")
+
+        uj = uold.clone()
+
+        uuold = boundary_function(uold, g=g, kappa=self.kappa, q=q)
+        
+        if f == 0:
+            f_new = torch.tensor(0)
+        else:
+            f_new = f(xx[1:-1, 1:-1], yy[1:-1, 1:-1], t + dt)
+
+        for j in range(nouter):
+
+            #uiplus = torch.zeros_like(uj) # set up jacobi iteration
+            ui = uj.clone()
+
+            uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q)
+
+            # Right hand side of Jacobi iteration - fixed
+
+            b = L * uj + dt * f_new + self.cmm(uuold - uuj)
+
+            for i in range(ninner):
+                uui = boundary_function(ui, g=g, kappa=self.kappa, q=q) # apply dirichlet boundary condition
+    
+                div_k_grad_ui = - self.diff(uui)
+
+                Au = L * ui + dt * div_k_grad_ui
+                D = torch.tensor([self.diag * dt + L])
+
+                #uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration
+                uiplus = jacobi2(Au, b, ui, D,  maxiterations=1)
+
+                assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
+                assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
+
+                if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-12:
+                    print(f"Inner iterations converged after {i+1} iterations")
+                    break
+
+                if i == ninner - 1:
+                    #print(f"Inner iteration has not converged")
+                    break
+
+                ui = uiplus.clone()
+
+            if torch.sqrt(torch.mean((uiplus - uj)**2)) <= 1e-12:
+                print(f"Outer iterations converged after {i+1} iterations")
+                break
+
+            if j == nouter - 1:
+                print(f"Outer iteration has not converged, error is {torch.sqrt(torch.mean((uiplus - uj)**2))}")
+                break
+
+            uj = uiplus.clone()        
+
+        return uiplus  
+
+
 class Richards_PC(Richards):
-    def __init__(self, w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag, drain_l, drain_r):
-         super().__init__(w1, wm, bias_initializer, zz, dx, dy, theta, kappa, diag, drain_l, drain_r)
+    def __init__(self, zz, dx, dy, theta, kappa, drain_l=0, drain_r=0):
+         super().__init__(zz, dx, dy, theta, kappa, drain_l=0, drain_r=0)
 
     def forward(self, uold, t, dt, boundary_type, ninner=1, q=1, g=1, f=0):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
@@ -260,8 +323,102 @@ class Richards_PC(Richards):
         else:
             f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
 
-        ujplus = torch.zeros_like(uold, device=device)
+        ujplus = torch.zeros_like(uold)
         uj = uold.clone()
+
+        for i in range(ninner):
+            # predictor step
+            uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q)
+            # this is like a forward euler scheme
+            div_k_grad_uj = - 0.5 * (self.diff(self.kappa(uuj) * (uuj + self.zz)) \
+                                     + self.kappa(uj) * self.diff(uuj + self.zz) \
+                                          - (uj + self.z)* self.diff(self.kappa(uuj)))
+
+            RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) + dt * div_k_grad_uj + dt * f_new
+            ujstar =  uj + 1 / L * RHS
+            
+            uujstar = boundary_function(ujstar, g=g, kappa=self.kappa, q=q)
+
+            # corrector step
+            ujpred = 0.5 * (uold + ujstar)
+            uujpred = boundary_function(ujpred, g=g, kappa=self.kappa, q=q)
+
+            div_k_grad_uj_pred = - 0.5 * (self.diff(self.kappa(uujpred) * (uujpred + self.zz)) \
+                                          + self.kappa(ujpred) * self.diff(uujpred + self.zz) \
+                                            - (ujpred + self.z)* self.diff(self.kappa(uujpred)))
+
+            RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar)) + dt * div_k_grad_uj_pred
+            ujplus = (uj + 1 / L * RHS_pred).clone()
+            #ujplus = self.apply_malago_infiltration_bcs(ujplus, q)
+
+            assert torch.isinf(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
+            assert torch.isnan(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
+            
+            if torch.sqrt(torch.mean((ujplus - uj)**2)) <= 1e-12:
+                print(f"Iterations converged after {i+1} iterations")
+                break
+
+            uj = ujplus.clone()
+
+        return ujplus
+
+        
+class Richards_PC_MG(Richards):
+    def __init__(self, zz, dx, dy, theta, kappa, drain_l=0, drain_r=0):
+         super().__init__(zz, dx, dy, theta, kappa, drain_l=0, drain_r=0)
+
+    def forward(self, uold, t, dt, boundary_type, ninner=1, q=1, g=1, f=0):
+        """Here we use a Jacobi iteration with an L method to solve richard's equation."""
+        L = 5 # lipschitz constant, should be 2.
+ 
+        if boundary_type == "Dirichlet":
+            boundary_function = self.apply_dirichlet_bcs
+        elif boundary_type == "Mixed":
+            boundary_function = self.apply_mixed_bcs
+        elif boundary_type == "Neumann":
+            boundary_function = self.apply_neumann_bcs
+        elif boundary_type == "Conditional":
+                    boundary_function = self.apply_conditional_bcs
+        else:
+            raise Exception("Need to specify Dirichlet, Mixed, Neumann or Conditional boundary conditions")
+            
+        uuold = boundary_function(uold, g=g, kappa=self.kappa, q=q)
+
+        if f == 0:
+            f_new = torch.tensor(0)
+        else:
+            f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
+
+        ujplus = torch.zeros_like(uold)
+        uj = uold.clone()
+
+
+        ## First calculate the residual on each level
+        iteration = 3
+        nlevel = 3
+
+        for MG in range(iteration):
+            r = f
+
+            r_s = []
+            r_s.append(r)
+
+            for i in range(1, nlevel):
+                r = self.res(r)
+                r_s.append(r)
+
+            for i in reversed(range(1, nlevel)):
+                n = 4
+
+
+
+        ## Then perform a jacobi iteration on the coarsest mesh
+
+        ## prolongate to next level
+
+        ## move to coarsest level
+
+
 
         for i in range(ninner):
             # predictor step

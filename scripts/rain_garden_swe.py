@@ -1,32 +1,19 @@
-''' 
-Infiltration of Malago Road rain garden using Richard's equation
-Katie MacKenzie 
-km2560@bath.ac.uk
 '''
-# # # ######################################## # # #
-# # # #####   Import libraries and data  ##### # # #
-# # # ######################################## # # #
+ Amin Nadimy, Boyang Chen, Claire Heaney, Christopher Pain
+ Department of Earth Science and Engineering
+ Imperial College London
 
+ modified by Katie MacKenzie 
+ km2560@bath.ac.uk
+'''
+#-- Import general libraries
 import numpy as np 
 import time 
 import torch
+from AI4Flood.swe_solver import AI4SWE
 import tomllib
 import argparse
-from AI4Flood.richards_solver import *
-from AI4Flood.richards_coefficients import theta_malago, kappa_malago
-from AI4Flood.generate_csv_files import generate_csv_files
-from AI4Flood.misc_functions import clear_output_folder
-
-clear_output_folder("/home/katie795/Flooding_workspace/Shallow_Water_Equations_NN4PDEs/results")
-torch.set_default_dtype(torch.float64)
-
-rainfall_data = np.genfromtxt("../data/Clifton_rain_modifed_for_rainfall_event.csv", delimiter=',')[1:, 0]
-time_data = 60 * 15 * np.array(range(len(rainfall_data)))
-
-def rainfall_flux(t, dt):
-    """Interpolated function for rainfall"""
-    rainfall = np.interp(t, time_data, rainfall_data)
-    return np.asarray(dt) * rainfall / (1000 * 15 * 60) # converting mm/15mins flux to m/second / timestep
+import AI4Flood.infiltration as infiltration 
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -34,7 +21,13 @@ parser.add_argument(
     type=str,
     action="store",
     help="name of the parameter file",
-    default="config_rain_garden.toml"
+    default="config.toml"
+)
+
+parser.add_argument(
+    "--infiltration",
+    action="store_true",
+    help="whether to apply infiltration to the rain garden"
 )
 
 args, _ = parser.parse_known_args()
@@ -43,78 +36,186 @@ with open(args.config, "rb") as f:
     config = tomllib.load(f)
 
 # Check if GPU is available 
-device = torch.device(config["parameters"]["device"])
+is_gpu = torch.cuda.is_available()
+device = torch.device("cuda" if is_gpu else "cpu")
 print(f"Running on device {device}")
 
-# # # ##################################################### # # #
-# # # #####   Numerical parameters from config file   ##### # # #
-# # # ##################################################### # # #
-dx       = torch.tensor([config["parameters"]["dx"]], device=device) 
-dy       = torch.tensor([config["parameters"]["dy"]], device=device)
-nx       = torch.tensor([config["parameters"]["nx"]], device=device)
-ny       = torch.tensor([config["parameters"]["ny"]], device=device)
-length   = torch.tensor([config["parameters"]["length"]], device=device) 
-depth    = torch.tensor([config["parameters"]["depth"]], device=device) 
-drain_l  = torch.tensor([config["parameters"]["drain_l"]], device=device)
-drain_r  = torch.tensor([config["parameters"]["drain_r"]], device=device)
-dt       = torch.tensor([config["parameters"]["dt"]], device=device)
-T        = torch.tensor([config["parameters"]["T"]], device=device)
-save_fig = torch.tensor([config["parameters"]["save_fig"]], device=device)
-n_out    = torch.tensor([config["parameters"]["n_out"]], device=device)
+# # # ################################### # # #
+# # # ######   Numerical parameters ###### # # #
+# # # ################################### # # #
+# create a torch constant
 
-x, y, xx, yy = generate_csv_files(nx, ny, length, depth, name="infiltration")
+dt = torch.tensor([config["parameters"]["dt"]], device=device) # timestep (s)
+dx = torch.tensor([config["parameters"]["dx"]], device=device) # spatial discretisation (m) (here it is 20cm)
+nx = torch.tensor([config["parameters"]["nx"]], device=device) # number of points in x direction
+ny = torch.tensor([config["parameters"]["ny"]], device=device) # number of points in y direction
 
 # # # ################################### # # #
 # # # ######    Linear Filter      ###### # # #
 # # # ################################### # # #
-
-bias_initializer = torch.tensor([0.0], device=device).double()
-# Isotropic Laplacian  # TODO: make this vary in dy as well
-w1 = torch.tensor([[[[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]],
-                    [[-1/3/dx**2], [8/3/dx**2], [-1/3/dx**2]],
-                    [[-1/3/dx**2], [-1/3/dx**2] , [-1/3/dx**2]]]], device=device).double()
-# mass matrix
-wm = torch.tensor([[[[0.0], [0.0], [0.0]],
-                            [[0.0], [1.0], [0.0]],
-                            [[0.0], [0.0], [0.0]]]], device=device).double()
+bias_initializer = torch.tensor([0.0], device=device)
+# Isotropic Laplacian  
+# These are the weights for the convolutions for the neural network
+# these are the same for uniform grids
+# tensor is of shape (batchsize, nkernels, pixels in rows, pixels in columns)
+# tensor is of shape (batchsize, channels out, rows, columns)
+# These are related to finite element basis functions
+w1 = torch.tensor([[[[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]],
+                    [[1/3/dx**2], [-8/3/dx**2], [1/3/dx**2]],
+                    [[1/3/dx**2], [1/3/dx**2] , [1/3/dx**2]]]], device=device)
+# Gradient in x 
+w2 = torch.tensor([[[[1/(12*dx)], [0.0], [-1/(12*dx)]],
+                    [[1/(3*dx)] , [0.0], [-1/(3*dx)]] ,
+                    [[1/(12*dx)], [0.0], [-1/(12*dx)]]]], device=device)
+# Gradient in y 
+w3 = torch.tensor([[[[-1/(12*dx)], [-1/(3*dx)], [-1/(12*dx)]],
+                    [[0.0]       , [0.0]      , [0.0]]       ,
+                    [[1/(12*dx)] , [1/(3*dx)] , [1/(12*dx)]]]], device=device)
+# Consistant mass matrix 
+wm = torch.tensor([[[[0.028], [0.11] , [0.028]],
+                    [[0.11] ,  [0.44], [0.11]],
+                    [[0.028], [0.11] , [0.028]]]], device=device)
 
 w1 = torch.reshape(w1,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
+w2 = torch.reshape(w2,(1,1,3,3))
+w3 = torch.reshape(w3,(1,1,3,3))
 wm = torch.reshape(wm,(1,1,3,3))
-diag = -np.array(w1.cpu(), dtype=None, copy=None)[0,0,1,1] # diagonal matrix
+
+#######################################################
+################# Numerical parameters ################
+ntime = config["parameters"]["nt"]    # Time steps
+n_out = config["parameters"]["n_out"] # How often to save the results 
+nrestart = 0                # Last time step for restart
+ctime_old = 0               # Last ctime for restart
+mgsolver = True             # Multigrid solver for non-hydrostatic pressure 
+nsafe = 0.5                 # Continuty equation residuals
+ctime = 0                   # Initialise ctime   
+save_fig = True             # Save results
+Restart = False             # Restart
+eplsion_k = 1e-04           # Stablisation factor in Petrov-Galerkin for velocity
+eplsion_eta = 1e-04         # Stablisation factor in Petrov-Galerkin for height
+beta = 4                    # diagonal factor in mass term
+real_time = torch.tensor([0.0], device=device)
+istep = 0
+
+# # # ################################### # # #
+# # # ######   Physical parameters    ### # # #
+# # # ################################### # # #
+g_x = 0;g_y = 0;g_z = 9.81  # Gravity acceleration (m/s2) 
+rho = 1/g_z                 # Resulting density
+diag = -np.array(w1.cpu())[0,0,1,1]
 
 # # # ################################### # # #
 # # # ######   Create field (tensor)  ### # # #
 # # # ################################### # # #
+input_shape = (1, 1, ny, nx)
+values_u     = torch.zeros(input_shape, device=device) # u
+values_v     = torch.zeros(input_shape, device=device) # v
+a_u          = torch.zeros(input_shape, device=device)
+a_v          = torch.zeros(input_shape, device=device)
+b_u          = torch.zeros(input_shape, device=device)
+b_v          = torch.zeros(input_shape, device=device)
+c_u          = torch.zeros(input_shape, device=device)
+c_v          = torch.zeros(input_shape, device=device)
+eta1         = torch.zeros(input_shape, device=device)
+eta2         = torch.zeros(input_shape, device=device)
+values_hh    = torch.zeros(input_shape, device=device)
+dif_values_h = torch.zeros(input_shape, device=device)
+values_h_old = torch.zeros(input_shape, device=device)
+sigma_q      = torch.zeros(input_shape, device=device)
+k_u          = torch.zeros(input_shape, device=device)
+k_v          = torch.zeros(input_shape, device=device)
+k_x          = torch.zeros(input_shape, device=device)
+k_y          = torch.zeros(input_shape, device=device)
+b            = torch.zeros(input_shape, device=device)
+# Padding
+input_shape_pd = (1, 1, ny + 2, nx + 2)
+values_uu     = torch.zeros(input_shape_pd, device=device) # u boundary condition
+values_vv     = torch.zeros(input_shape_pd, device=device) # v boundary condition
+b_uu          = torch.zeros(input_shape_pd, device=device)
+b_vv          = torch.zeros(input_shape_pd, device=device)
+eta1_p        = torch.zeros(input_shape_pd, device=device)
+dif_values_hh = torch.zeros(input_shape_pd, device=device)
+values_hhp    = torch.zeros(input_shape_pd, device=device)
+values_hp     = torch.zeros(input_shape_pd, device=device)
+k_uu          = torch.zeros(input_shape_pd, device=device)
+k_vv          = torch.zeros(input_shape_pd, device=device)
+# stablisation factor
+k1 = torch.ones(input_shape, device=device)*eplsion_eta
+k2 = torch.zeros(input_shape, device=device)    
+k3 = torch.ones(input_shape, device=device)*dx**2*0.5/dt # for transient problem
+#######################################################
 print('============== Numerical parameters ===============')
-print(f'Time step: {dt.item()} seconds')
-print(f'Final time:  {T.item()} seconds = {T.item() / 3600} hours')
+print('Mesh resolution:', values_v.shape)
+print('Time step:', ntime)
+print('Initial time:', ctime)
 print('Diagonal component:', diag)
-
+#######################################################
 # # # ################################### # # #
 # # # #######   Initialisation ########## # # #
 # # # ################################### # # #
 
-# assumption of some equilibrium
-u_old = - torch.unsqueeze(torch.unsqueeze(y, 0), 0).to(torch.float64)
-model = Richards_PC(w1, wm, bias_initializer, yy, dx, dy, theta_malago, kappa_malago, diag=diag, f=0, drain_l=drain_l, drain_r=drain_r).to(device)
+values_h = torch.zeros(input_shape, device=device)
+values_H = torch.zeros(input_shape, device=device)
 
-t = 0
-i = 0
+with open('data/full_domain.csv', 'r') as file:
+    mesh = np.genfromtxt(file, delimiter=',')
+
+mesh = mesh.reshape(ny,nx)
+values_H[0,0,:,:] = torch.tensor(mesh, device=device)
+
+# defining the source term
+source_h = torch.zeros(input_shape, device=device)
+
+
+# Transfer array into tensor
+values_h = values_H
+values_h_initital = values_H
+values_H = - values_H ## this is used for info about the bathymetry of the surface! Values_H is fixed!
+
+def get_source(time):
+    # here time is in seconds
+    if time < 100:
+        # 10mm / hour ( heavy rain )
+        # 10 / (60 * 60) = 0.00278 m / second
+        source_h[0,0, :, :] = 0.00278 * dt # source times timestep
+    elif time >= 100:
+        source_h[0,0, :, :] = 0
+    
+model = AI4SWE(w1, w2, w3, wm, bias_initializer, dx, beta, diag).to(device)
+
 start = time.time()
-np.savetxt(f"../results/u_0.csv", u_old.cpu().detach().numpy()[0,0,:,:], delimiter=",")
-
 with torch.no_grad():
-    while t < T:
+
+    for itime in range(1, ntime+1):
+
+        get_source(real_time)
+
+        for t in range(2):
+            [values_u, values_v, values_h, values_hh, dif_values_h, sigma_q] = model(values_u, values_uu, values_v, values_vv, values_H, values_h, 
+                    values_hp, b_u, b_uu, b_v, b_vv, dt, rho, k1, k2, k3, eta1_p, source_h, dif_values_h, dif_values_hh, values_hh, values_hhp) # output          
         
-        u_new = model(u_old, t, dt, boundary_type="Conditional", ninner=2, q=rainfall_flux(t, dt), g=g)
-        t += dt
-        i += 1
-        # save figure every n_out timesteps
+        if args.infiltration:
+            values_h = infiltration.darcy(values_h, values_h_initital)
+            eta_filename = "eta_infiltration"
+        else:
+            eta_filename = "eta_impervious"
+        
+        real_time = real_time + dt
+        istep +=1
 
-        if save_fig == True and i % n_out == 0:
-            np.savetxt(f"../results/u_{int(i/ n_out)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+        if np.max(np.abs(values_hh.cpu().detach().numpy())) > 10.0:
+            print('Not converged !!!!!!')
+            break
 
-        u_old = u_new.clone()
+        print(f'Time step: {itime}, height correction: {np.max(values_hh.cpu().detach().numpy())}, time = {real_time.item():.2f}s')
+        print(f"Maximum depth is {np.max((values_h - values_h_initital).cpu().detach().numpy())}m") 
 
+        if save_fig == True and itime % n_out == 0:
+            np.savetxt(f"results/{eta_filename}_{itime}.csv", (values_h - values_h_initital).cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            np.savetxt(f"results/h_road_{itime}.csv", values_h.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            np.savetxt(f"results/u_{itime}.csv", (values_u).cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            np.savetxt(f"results/v_{itime}.csv", (values_v).cpu().detach().numpy()[0,0,:,:], delimiter=",")
+            
     end = time.time()
-    print(f'Time to run simulation: {end-start}s')
+    print(f'Time to run simulation:{end-start}s')

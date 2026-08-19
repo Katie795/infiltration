@@ -47,3 +47,54 @@ def calculate_grad(u, dx, dy):
     u_dx = calculate_dx(u, dx)
     u_dy = calculate_dy(u, dy)
     return u_dx, u_dy
+
+
+
+def jacobi(A, b, x_old, maxiterations=100, tol=1e-12):
+
+    A = torch.squeeze(A)
+    b = torch.squeeze(b)
+    x = torch.squeeze(x_old)
+
+
+
+    assert dd(A), "A is not diagonally dominant, a requirement for jacobi to succeed."
+
+    D = torch.diag(A)
+    D_inv = torch.diagflat(1/D)
+
+    for _ in range(maxiterations):
+        dx = torch.matmul(D_inv, (b - torch.matmul(A, x)))
+        x = x + dx
+        if torch.max(dx) <= tol:
+            break
+    x = torch.reshape(x, x_old.shape)
+    return x
+
+def jacobi2(Ax, b_old, x, D, maxiterations=100, tol=1e-12):
+
+    Ax = torch.squeeze(Ax)
+    b = torch.squeeze(b_old)
+
+    #assert dd(A), "A is not diagonally dominant, a requirement for jacobi to succeed."
+
+    #D = torch.diag(A)
+    D_inv = 1 / D
+
+    for _ in range(maxiterations):
+        dx = D_inv * (b - Ax)
+        x = x + dx
+        if torch.max(dx) <= tol:
+            break
+    x = torch.reshape(x, b_old.shape)
+  
+    return x
+
+def dd(A):
+    """Checks whether the matrix is diagonally dominant"""
+    D = torch.diag(A)
+    S = torch.sum(torch.abs(A), axis=1) - D
+    if torch.all(D > S):
+        return True
+    else:
+        return False
