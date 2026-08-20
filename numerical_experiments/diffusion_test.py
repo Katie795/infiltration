@@ -13,7 +13,7 @@ nx_array = torch.tensor([10, 20, 40]) # number of elements in each edge of mesh
 dt_array = 0.1 * torch.tensor([0.01]) # timestep array
 length = 1                            # domain is [0, 1] x [0, 1]
 T = 0.001                             # total length of time
-#KAPPA = False                        # whether to include nonlinear kappa
+KAPPA = True                        # whether to include nonlinear kappa
 PC = False                            # predictor corrector method or L method
 
 ### Set up gpu specs ###
@@ -26,19 +26,38 @@ L2_error_dx = []
 niterations = []
 L2_error = []
 
-def Kappa(s):
-    return torch.ones_like(s)
 
 def theta(s):
     return s
+
+def Kappa1(s):
+    return torch.ones_like(s)
+
+def f1(x, y, t):
+    return (2 * torch.pi ** 2 - 1 ) * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
+
+def Kappa2(s):
+    return s**2 + 1
+
+def f2(x, y, t):
+
+    f = (2 * torch.pi ** 2 - 1 ) * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) \
+        + torch.pi ** 2 * torch.exp(-3 * t) * torch.sin(torch.pi * x) * ( torch.sin(torch.pi * x) ** 2 - 2 * torch.cos(torch.pi * x) ** 2  ) * torch.sin(torch.pi * y) ** 3  \
+        + torch.pi ** 2 * torch.exp(-3 * t) * torch.sin(torch.pi * y) * ( torch.sin(torch.pi * y) ** 2 - 2 * torch.cos(torch.pi * y) ** 2  ) * torch.sin(torch.pi * x) ** 3 
+    return f
+
 
 def u_exact(x, y, t):
     u_exact = torch.exp(-torch.tensor(t)) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
 
     return torch.unsqueeze(torch.unsqueeze(u_exact, 0), 0)
 
-def f1(x, y, t):
-    return (2 * torch.pi ** 2 - 1 ) * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
+if KAPPA == True:
+    kappa = Kappa2
+    f = f2
+else:
+    kappa = Kappa1
+    f = f1
 
 with torch.no_grad():
     for dt in dt_array:
@@ -55,18 +74,18 @@ with torch.no_grad():
             uold = u_init.clone()
 
             if PC == True:
-                model = Richards_PC(zz, dx, dx, theta, Kappa)
+                model = Richards_PC(zz, dx, dx, theta, kappa)
             else:
-                model = Richards_L(zz,  dx, dx, theta, Kappa)
-
-            g = torch.zeros((1, 1, nx+3, nx+3))
+                model = Richards_L(zz,  dx, dx, theta, kappa)
 
             while t < T:
-                g = u_exact(xx,yy,t + dt)
+                g_old = u_exact(xx,yy,t)
+                g_new = u_exact(xx,yy,t + dt) # boundary condition
+                
                 if PC == True:
-                    u_new = model(uold, t, dt, ninner=100, boundary_type="Dirichlet",  g=g, f=f1, xx=xx, yy=yy)
+                    u_new = model(uold, t, dt, ninner=100, boundary_type="Dirichlet", g_old=g_old, g_new=g_new, f=f, xx=xx, yy=yy)
                 else:
-                    u_new = model(uold, t, dt, L=5, ninner=200, nouter=200, boundary_type="Dirichlet", omega=0.5, g=g, f=f1, xx=xx, yy=yy)
+                    u_new = model(uold, t, dt, L=5, ninner=100, nouter=200, boundary_type="Dirichlet", omega=0.5, g_old=g_old, g_new=g_new,  f=f, xx=xx, yy=yy)
                 t += dt
                 if t >= T:
                     print("t has reached the final time!")
@@ -74,17 +93,17 @@ with torch.no_grad():
                 uold = u_new.clone()
 
             error = u_new - u_exact(x, y, t) # spatial error
-            print("Model solution on boundary is:")
-            print(u_new[0,0,0,:])
-            print(u_new[0,0,-1,:])
-            print(u_new[0,0,:,0])
-            print(u_new[0,0,:,-1])
+            #print("Model solution on boundary is:")
+            #print(u_new[0,0,0,:])
+            #print(u_new[0,0,-1,:])
+            #print(u_new[0,0,:,0])
+            #print(u_new[0,0,:,-1])
 
-            print("Exact solution on boundary is:")
-            print(u_exact(x, y, t)[0,0,0,:])
-            print(u_exact(x, y, t)[0,0,-1,:])
-            print(u_exact(x, y, t)[0,0,:,0])
-            print(u_exact(x, y, t)[0,0,:,-1])
+            #print("Exact solution on boundary is:")
+            #print(u_exact(x, y, t)[0,0,0,:])
+            #print(u_exact(x, y, t)[0,0,-1,:])
+            #print(u_exact(x, y, t)[0,0,:,0])
+            #print(u_exact(x, y, t)[0,0,:,-1])
 
             plot_tensor(xx, yy, u_exact(xx,yy, t)[0,0,:,:].cpu().numpy(), "exact_solution")
             plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
@@ -120,22 +139,3 @@ if PC == True:
     plt.savefig(f"../plots/diffusion_PC.png")
 else:
     plt.savefig(f"../plots/diffusion_L.png")
-
-
-#def f(x, y, t):
-#    f = - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
-#        (1 - 2 * torch.pi ** 2) + torch.pi ** 2 * torch.exp(-2 * t ) * (
-#            torch.sin(torch.pi * y) ** 2 * (2 * torch.cos(torch.pi * x) ** 2 - torch.sin(torch.pi * y) ** 2)
-#            + torch.sin(torch.pi * x) ** 2 * (2 * torch.cos(torch.pi * y) ** 2 - torch.sin(torch.pi * x) ** 2)
-#        )
-#    )
-#
-#    f2 = - 2 * torch.pi ** 2 * torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y) * (
- #       torch.exp(-2*t) * (torch.sin(torch.pi * x )**2 + torch.sin(torch.pi * y )**2
-#                           - 3 * torch.sin(torch.pi * x )**2 * torch.sin(torch.pi * y )**2)
-#     - 1) - torch.exp(-t) * torch.sin(torch.pi * x) * torch.sin(torch.pi * y)
-    
- #   return f2
-
- #def Kappa(s):
- #   return s**2 + 1

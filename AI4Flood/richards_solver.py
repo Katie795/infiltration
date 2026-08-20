@@ -145,7 +145,7 @@ class Richards_L(Richards):
     def __init__(self, zz, dx, dy,  theta, kappa, drain_l=0, drain_r=0):
          super().__init__(zz, dx, dy, theta, kappa, drain_l=0, drain_r=0)
 
-    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g=1, f=0, xx=1, yy=1):
+    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g_old=1, g_new=1, f=0, xx=1, yy=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
         # Choose which boundary function to use
@@ -161,54 +161,53 @@ class Richards_L(Richards):
             raise Exception("Need to specify Dirichlet, Mixed or Neumann boundary conditions")
 
         uj = uold.clone()
-
-        uuold = boundary_function(uold, g=g, kappa=self.kappa, q=q)
+        uuold = boundary_function(uold, g=g_old, kappa=self.kappa, q=q)
         
         if f == 0:
             f_new = torch.tensor(0)
         else:
             f_new = f(xx[1:-1, 1:-1], yy[1:-1, 1:-1], t + dt)
 
+        D = torch.tensor([self.diag * dt + L])
+
         for j in range(nouter):
 
             uiplus = torch.zeros_like(uj) # set up jacobi iteration
+
             ui = uj.clone()
 
-            uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q)
+            uuj = boundary_function(uj, g=g_new, kappa=self.kappa, q=q)
 
-            # Right hand side of Jacobi iteration - fixed
-            b = L * uj + dt * f_new + self.cmm(self.theta(uuold) - self.theta(uuj))
+            # Right hand side of Jacobi iteration - fixed for inner iterations
+            b = L * uj + dt * f_new  + self.cmm(self.theta(uuold) - self.theta(uuj))
 
             for i in range(ninner):
-                uui = boundary_function(ui, g=g, kappa=self.kappa, q=q) # apply dirichlet boundary condition
-    
+                uui = boundary_function(ui, g=g_new, kappa=self.kappa, q=q) # apply dirichlet boundary condition
+
                 div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj + self.zz) * uui)  \
-                                         + self.kappa(uj + self.z) * self.diff(uui) \
-                                            - ui * self.diff(self.kappa(uuj + self.zz)))
-
-                div_k_grad_ui = self.diff(uui)
-
-                A = L * ui - dt * div_k_grad_ui
-                D = torch.tensor([self.diag * dt + L])
+                                            + self.kappa(uj + self.z) * self.diff(uui) \
+                                            - ui * self.diff(self.kappa(uuj + self.zz))) # updating diffusion term
+                
+                Au = L * ui - dt * div_k_grad_ui
 
                 #uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration # omega = 1 does not work!!!
-                uiplus = jacobi2(A, b, ui, D,  maxiterations=1) # These solvers give exactly the same thing
+                uiplus = jacobi2(Au, b, ui, D,  maxiterations=1) # These solvers give exactly the same thing
 
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 
                 if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-12:
                     print(f"Inner iterations converged after {i+1} iterations")
+
                     break
 
                 if i == ninner - 1:
-                    #print(f"Inner iteration has not converged")
                     break
 
                 ui = uiplus.clone()
 
             if torch.sqrt(torch.mean((uiplus - uj)**2)) <= 1e-12:
-                print(f"Outer iterations converged after {i+1} iterations")
+                print(f"Outer iterations converged after {j+1} iterations")
                 break
 
             if j == nouter - 1:

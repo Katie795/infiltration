@@ -44,7 +44,7 @@ def kappa_hm(s):
     s = s[0, 0]
 
     base = 2.0
-    kappa_left = 2.0 / (1.0 + s ** 2) 
+    kappa_left = 2.0 / (1.0 + s **2 ) 
 
     ans = torch.where(s < 0, kappa_left, base)
 
@@ -78,7 +78,7 @@ def u_exact_hm(x, y, t):
     s = x - y - t
 
     left = -0.5 * s
-    right = -torch.tan(torch.tanh(s / 2))
+    right = -torch.tan((torch.exp(s) - 1) / (torch.exp(s) + 1))
 
     ans = torch.where(s < 0, left, right)
 

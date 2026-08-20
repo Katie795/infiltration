@@ -90,6 +90,7 @@ def jacobi2(Ax, b_old, x, D, maxiterations=100, tol=1e-12):
   
     return x
 
+
 def dd(A):
     """Checks whether the matrix is diagonally dominant"""
     D = torch.diag(A)
