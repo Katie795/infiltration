@@ -87,9 +87,31 @@ def jacobi2(Ax, b_old, x, D, maxiterations=100, tol=1e-12):
         if torch.max(dx) <= tol:
             break
     x = torch.reshape(x, b_old.shape)
+
+    # OF COURSE IT DOESNT WORK
+    
   
     return x
 
+def conjugate_gradient(Ax, b_old, x, maxiterations=100, tol=1e-12):
+
+    L = Ax
+    
+    Ax = torch.squeeze(Ax)
+    b = torch.squeeze(b_old)
+    r = b - Ax
+    p = r
+
+    for _ in range(maxiterations):
+        dx = D_inv * (b - Ax)
+        x = x + dx
+        if torch.max(dx) <= tol:
+            break
+    x = torch.reshape(x, b_old.shape)
+
+
+def gauss_seidel():
+    return
 
 def dd(A):
     """Checks whether the matrix is diagonally dominant"""

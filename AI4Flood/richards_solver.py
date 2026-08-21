@@ -190,8 +190,8 @@ class Richards_L(Richards):
                 
                 Au = L * ui - dt * div_k_grad_ui
 
-                #uiplus = (ui  + omega * (b - A) / D).clone() # Jacobi iteration # omega = 1 does not work!!!
-                uiplus = jacobi2(Au, b, ui, D,  maxiterations=1) # These solvers give exactly the same thing
+                uiplus = (ui  + (b - Au) / D).clone() # Jacobi iteration # omega = 1 does not work!!!
+                #uiplus = jacobi2(Au, b, ui, D,  maxiterations=2) # These solvers give exactly the same thing
 
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False

@@ -9,10 +9,10 @@ from AI4Flood.misc_functions import *
 torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
-nx_array = torch.tensor([10, 20, 40]) # number of elements in each edge of mesh
-dt_array = 0.1 * torch.tensor([0.01]) # timestep array
-length = 1                            # domain is [0, 1] x [0, 1]
-T = 0.001                             # total length of time
+nx_array = torch.tensor([10, 20, 40, 80]) # number of elements in each edge of mesh
+dt_array = 0.01 * torch.tensor([0.2, 0.1, 0.05, 0.02, 0.01]) # timestep array
+length = 0.01                            # domain is [0, 1] x [0, 1]
+T = 1                             # total length of time
 KAPPA = True                        # whether to include nonlinear kappa
 PC = False                            # predictor corrector method or L method
 
@@ -135,7 +135,11 @@ ax2.set_xlabel(r"$\tau$", fontsize=12)
 ax2.set_ylabel(r"$L^2$ error", fontsize=12)
 ax2.legend(fontsize=12)
 plt.tight_layout()
-if PC == True:
-    plt.savefig(f"../plots/diffusion_PC.png")
+if PC == True and KAPPA == True:
+    plt.savefig(f"../plots/diffusion_PC_kappa.png")
+elif PC == True and KAPPA == False:
+    plt.savefig(f"../plots/diffusion_PC_linear.png")
+elif PC == False and KAPPA == True:
+    plt.savefig(f"../plots/diffusion_L_kappa.png")
 else:
-    plt.savefig(f"../plots/diffusion_L.png")
+    plt.savefig(f"../plots/diffusion_L_linear.png")

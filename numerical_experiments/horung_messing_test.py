@@ -7,11 +7,15 @@ from AI4Flood.richards_coefficients import u_exact_hm, kappa_hm, theta_hm
 from AI4Flood.misc_functions import *
 
 ### Variables that can be changed ###
-T = 0.001                                      # total length of time
-nx_array = torch.tensor([20, 40, 80, 160])# numer of elements in each edge of mesh
+T = 0.1                                   # total length of time
+#nx_array = torch.tensor([20, 40, 80, 160])# numer of elements in each edge of mesh
+#nx_array = torch.tensor([8, 16, 32])
 #dt_array = torch.tensor([0.001, 0.0005, 0.0002, 0.0001])            # timestep array
-dt_array = torch.tensor([0.5 * T, 0.2 * T, 0.1 * T])            # timestep array
-#dt_array = torch.tensor([T])
+#dt_array = torch.tensor([0.5 * T, 0.2 * T, 0.1 * T, 0.05 * T, 0.02 * T])            # timestep array
+
+nx_array = torch.tensor([10, 20, 40, 80]) # number of elements in each edge of mesh
+dt_array = torch.tensor([0.1, 0.05, 0.02, 0.01]) # timestep array
+#dt_array = torch.tensor([0.5 * T])
 #T_array = torch.tensor([0.001, 0.002, 0.004, 0.008])
 length = 10                                   # domain is [0, 10] x [0, 10]
 PC = False                                      # whether to use predictor corrector method
@@ -53,7 +57,8 @@ with torch.no_grad():
                 if PC == True:
                     u_new = model(uold, t, dt, ninner=100, boundary_type="Dirichlet", g_old=g_old, g_new=g_new, xx=xx, yy=yy)
                 else:
-                    u_new = model(uold, t, dt, L=2, ninner=500, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new,  xx=xx, yy=yy)
+                    L = 0.05 * nx / dt 
+                    u_new = model(uold, t, dt, L=L, ninner=200, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new,  xx=xx, yy=yy)
                 uold = u_new.clone()
                 t += dt
 
@@ -73,7 +78,7 @@ with torch.no_grad():
 
 plot_tensor(xx.cpu(), yy.cpu(), u_exact_hm(xx, yy, T)[0,0,:,:].cpu().numpy() - u_exact_hm(xx, yy, t)[0,0,:,:].cpu().numpy(), "Exact_solution_error, T - t")
 
-dx = 1/(nx_array.cpu().numpy())
+dx = 10/(nx_array.cpu().numpy())
 L2_error = np.array(L2_error)
 
 ### convergence plot ###
@@ -87,8 +92,8 @@ ax1.set_ylabel(r"$L^2$ error", fontsize=12)
 ax1.legend(fontsize=12)
 
 for j in range(len(L2_error[0])):
-    ax2.loglog(dt_array.cpu().numpy(), L2_error[:,j], linestyle="dashed", marker=marker[j], label=rf"$\Delta x = {dx[j]}$")
-#plt.plot(dt, 0.001 * dt, color="black", linestyle="dotted", label=r"Slope $= -1$" )
+    ax2.loglog(dt_array.cpu().numpy(), L2_error[:,j], linestyle="dashed", marker=marker[j], label=rf"$\Delta x = {dx[j]:.6f}$")
+plt.plot(dt, 0.001 * dt, color="black", linestyle="dotted", label=r"Slope $= -1$" )
 ax2.set_xlabel(r"$\tau$", fontsize=12)
 ax2.set_ylabel(r"$L^2$ error", fontsize=12)
 ax2.legend(fontsize=12)
