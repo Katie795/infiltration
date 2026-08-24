@@ -14,9 +14,10 @@ nx_array = torch.tensor([7, 15, 31, 63]) # number of elements in each edge of me
 # THIS NOW NEEDS TO BE DIVISIBLE BY 4!!!
 dt_array = 0.01 * torch.tensor([0.1, 0.05, 0.02, 0.01]) # timestep array
 length = 1                           # domain is [0, 1] x [0, 1]
-T = 0.001                             # total length of time
+T = 0.01 * 0.1                             # total length of time
 KAPPA = False                        # whether to include nonlinear kappa
-PC = False                            # predictor corrector method or L method
+PC = True                            # predictor corrector method or L method
+L_factor = 100
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -27,7 +28,6 @@ print(f"Running on device {device}")
 L2_error_dx = []
 niterations = []
 L2_error = []
-
 
 def theta(s):
     return s
@@ -85,11 +85,11 @@ with torch.no_grad():
                 g_new = u_exact(xx,yy,t + dt) # boundary condition
                 
                 if PC == True:
-                    L = 10 * nx * dt
+                    L = 5 #L_factor * nx * dt
                     print(f"L is {L}")
-                    u_new = model(uold, t, dt, ninner=200, boundary_type="Dirichlet", g_old=g_old, g_new=g_new, f=f, L=L, xx=xx, yy=yy)
+                    u_new = model(uold, t, dt, ninner=10, boundary_type="Dirichlet", g_old=g_old, g_new=g_new, f=f, L=L, xx=xx, yy=yy)
                 else:
-                    L = nx * dt
+                    L = 5 #L_factor * nx * dt
                     print(f"L is {L}")
                     u_new = model(uold, t, dt, L=10, ninner=100, nouter=200, boundary_type="Dirichlet", omega=0.5, g_old=g_old, g_new=g_new,  f=f, xx=xx, yy=yy)
                 t += dt
@@ -111,9 +111,9 @@ with torch.no_grad():
             #print(u_exact(x, y, t)[0,0,:,0])
             #print(u_exact(x, y, t)[0,0,:,-1])
 
-            plot_tensor(xx, yy, u_exact(xx,yy, t)[0,0,:,:].cpu().numpy(), "exact_solution")
-            plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-            plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
+            #plot_tensor(xx, yy, u_exact(xx,yy, t)[0,0,:,:].cpu().numpy(), "exact_solution")
+            #plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
+            #plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
             L2_error_dx.append(torch.sqrt(torch.mean((u_new - u_exact(x, y, t))**2)).cpu().numpy())
 
@@ -130,12 +130,12 @@ marker = ["o", "x", "s", "^", ">"]
 fig, (ax1, ax2) = plt.subplots(1,2, figsize=(14,6))
 for i in range(len(L2_error)):
     ax1.loglog(dx, L2_error[i], linestyle="dashed", marker=marker[i], label=rf"$\Delta t = {dt_array[i]:.6f}$")
-ax1.plot(dx, 10 *  dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+ax1.plot(dx, 0.1 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
 ax1.set_xlabel(r"$\Delta x$", fontsize=12)
 ax1.set_ylabel(r"$L^2$ error", fontsize=12)
 ax1.legend(fontsize=12)
 for j in range(len(L2_error[0])):
-    ax2.loglog(dt_array.cpu().numpy(), L2_error[:,j], linestyle="dashed", marker=marker[j], label=rf"$\Delta x = {dx[j]}$")
+    ax2.loglog(dt_array.cpu().numpy(), L2_error[:,j], linestyle="dashed", marker=marker[j], label=rf"$\Delta x = {dx[j]:.6f}$")
 ax2.plot(dt, 10 * dt, color="black", linestyle="dotted", label=r"Slope $= -1$" )
 ax2.set_xlabel(r"$\tau$", fontsize=12)
 ax2.set_ylabel(r"$L^2$ error", fontsize=12)

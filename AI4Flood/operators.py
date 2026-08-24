@@ -40,16 +40,32 @@ def get_weights_linear_2D(dx):
                         [[0.028], 
                         [0.11], 
                         [0.028]]]])
+    
+    wA = torch.tensor([[[[-1/3/dx**2],  # A matrix for Jacobi
+             [-1/3/dx**2],
+             [-1/3/dx**2]],
+
+            [[-1/3/dx**2],
+             [8/3/dx**2],
+             [-1/3/dx**2]],
+
+            [[-1/3/dx**2],
+             [-1/3/dx**2],
+             [-1/3/dx**2]]]])
+
+    w_res = torch.zeros([1,1,2,2]) 
+    w_res[0,0,:,:] = 0.25
 
     w_diff = torch.reshape(w_diff,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
     wm1 = torch.reshape(wm1,(1,1,3,3))
-    wm2 = torch.reshape(wm1,(1,1,3,3))
+    wm2 = torch.reshape(wm2,(1,1,3,3))
+    wA = torch.reshape(wA,(1,1,3,3))
 
     diag = -np.array(w_diff.cpu(), dtype=None, copy=None)[0,0,1,1] # diagonal matrix
 
     bias = torch.tensor([0.0])
 
-    return w_diff, wm1, diag, bias
+    return w_diff, wm1, wA, w_res, diag, bias
 
 
     

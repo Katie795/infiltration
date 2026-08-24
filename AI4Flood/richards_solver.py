@@ -17,19 +17,23 @@ class Richards(nn.Module):
         self.theta = theta
         self.kappa = kappa
 
-        [w_diff, wm1, diag, bias] = get_weights_linear_2D(self.dx)
+        [w_diff, wm1, wA, wres, diag, bias] = get_weights_linear_2D(self.dx)
         
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+        self.A    = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.diff.weight.data = w_diff
         self.cmm.weight.data = wm1
-        self.diff.bias.data = bias
-        self.cmm.bias.data = bias
+        self.A.weight.data = wA
         self.diag = diag
 
-        self.A    = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.res = nn.Conv2d(1, 1, kernel_size=2, stride=2, padding=0) # restriction
         self.prol = nn.Sequential(nn.Upsample(scale_factor=2, mode="nearest")) # prolongation
+        self.res.weight.data = wres
+        self.res.bias.data = bias
+        self.diff.bias.data = bias
+        self.cmm.bias.data = bias
+        self.A.bias.data = bias
 
 
 
@@ -145,28 +149,32 @@ class Richards(nn.Module):
         # This is not how seeoage boundary conditions are implemented!!
         return u_new
 
-    def F_cycle_MG(self, Au, u, b, D, iteration, nlevel):
+    def F_cycle_MG(self, Au, u, k, b, D, iteration, nlevel):
 
         for MG in range(iteration):
             a = torch.zeros((1,1,1,1)) # place to store values?
-            r = Au - b  # PDE residual 
+            r = b - Au  # PDE residual 
             r_s = []
             r_s.append(r)
             for i in range(1 ,nlevel): # down each
                 r = self.res(r) # restrict to smaller level
                 r_s.append(r)
             for i in reversed(range(1, nlevel)):
-                aa = self.apply_dirichlet_bcs(a) # zero BCs?
+                aa = self.apply_dirichlet_bcs(a) # APPLIES BOUNDARY CONDITIONS
+                print(f"aa is {aa}")
                 if i == nlevel-1: # if in coarsest grid
+                    # Largest residual
                     a = r_s[i] / D
+                    print(f"a is on first level and a is {a}")
                 else:
-                    a = a - self.A(aa) / D + r_s[i] / D # Jacobi iteration?
+                    # apply diffusion to included boundary conditions
+                    a = a + self.A(aa) / D - r_s[i] / D # Jacobi iteration?
+                    print(f"a is {a}")
                 
-                a = self.prol(a)        
+                a = self.prol(a)   
+                print(f"a is prolongated and a is {a}")     
 
-            #print(a)
-
-            u = u - a
+            u = u + a
             #u = u + 1 / D * (b - Au) # is this right???
         return u
 
@@ -197,14 +205,12 @@ class Richards_L(Richards):
         else:
             f_new = f(xx[1:-1, 1:-1], yy[1:-1, 1:-1], t + dt)
 
-        D = torch.tensor([self.diag * dt + L])
+        D = torch.tensor([self.diag * dt * torch.max(self.kappa(uold)) + L])
 
         for j in range(nouter):
 
             uiplus = torch.zeros_like(uj) # set up jacobi iteration
-
             ui = uj.clone()
-
             uuj = boundary_function(uj, g=g_new, kappa=self.kappa, q=q)
 
             # Right hand side of Jacobi iteration - fixed for inner iterations
@@ -213,23 +219,20 @@ class Richards_L(Richards):
             for i in range(ninner):
                 uui = boundary_function(ui, g=g_new, kappa=self.kappa, q=q) # apply dirichlet boundary condition
 
-                div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj + self.zz) * uui)  \
-                                            + self.kappa(uj + self.z) * self.diff(uui) \
-                                            - ui * self.diff(self.kappa(uuj + self.zz))) # updating diffusion term
+                div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui + self.zz))  \
+                                            + self.kappa(uj) * self.diff(uui + self.zz) \
+                                            - (ui + self.z) * self.diff(self.kappa(uuj))) # updating diffusion term
                 
                 Au = L * ui - dt * div_k_grad_ui
 
-                #uiplus = (ui  + (b - Au) / D).clone() # Jacobi iteration # omega = 1 does not work!!!
-                uiplus = self.F_cycle_MG(Au, ui, b, D, iteration=3, nlevel=3)
-                
-                #uiplus = jacobi2(Au, b, ui, D,  maxiterations=2) # These solvers give exactly the same thing
+                uiplus = (ui  + (b - Au) / D).clone() # Jacobi iteration # omega = 1 does not work!!!
+                #uiplus = self.F_cycle_MG(Au, ui, b, D, iteration=1, nlevel=3)             
 
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 
                 if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-12:
                     print(f"Inner iterations converged after {i+1} iterations")
-
                     break
 
                 if i == ninner - 1:
@@ -285,9 +288,7 @@ class Richards_PC(Richards):
                                      + self.kappa(uj) * self.diff(uuj + self.zz) \
                                           - (uj + self.z)* self.diff(self.kappa(uuj)))
 
-            #div_k_grad_uj = self.diff(uuj)
-
-            RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) + dt * div_k_grad_uj + dt * f_new
+            RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) / dt + div_k_grad_uj + f_new
             ujstar =  uj + 1 / L *  RHS
             
             uujstar = boundary_function(ujstar, g=g_new, kappa=self.kappa, q=q)
@@ -298,11 +299,9 @@ class Richards_PC(Richards):
 
             div_k_grad_uj_pred = 0.5 * (self.diff(self.kappa(uujpred) * (uujpred + self.zz)) \
                                           + self.kappa(ujpred) * self.diff(uujpred + self.zz) \
-                                            - (ujpred + self.z)* self.diff(self.kappa(uujpred)))
+                                            - (ujpred + self.z) * self.diff(self.kappa(uujpred )))
 
-            #div_k_grad_uj_pred = self.diff(uujpred)
-
-            RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar)) + dt * div_k_grad_uj_pred
+            RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar))/ dt + div_k_grad_uj_pred + f_new
             ujplus = (uj + 1 / L * RHS_pred).clone()
 
             assert torch.isinf(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
