@@ -9,11 +9,13 @@ from AI4Flood.misc_functions import *
 torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
-nx_array = torch.tensor([10, 20, 40, 80]) # number of elements in each edge of mesh
-dt_array = 0.01 * torch.tensor([0.2, 0.1, 0.05, 0.02, 0.01]) # timestep array
-length = 0.01                            # domain is [0, 1] x [0, 1]
-T = 1                             # total length of time
-KAPPA = True                        # whether to include nonlinear kappa
+nx_array = torch.tensor([7, 15, 31, 63]) # number of elements in each edge of mesh
+
+# THIS NOW NEEDS TO BE DIVISIBLE BY 4!!!
+dt_array = 0.01 * torch.tensor([0.1, 0.05, 0.02, 0.01]) # timestep array
+length = 1                           # domain is [0, 1] x [0, 1]
+T = 0.001                             # total length of time
+KAPPA = False                        # whether to include nonlinear kappa
 PC = False                            # predictor corrector method or L method
 
 ### Set up gpu specs ###
@@ -83,9 +85,13 @@ with torch.no_grad():
                 g_new = u_exact(xx,yy,t + dt) # boundary condition
                 
                 if PC == True:
-                    u_new = model(uold, t, dt, ninner=100, boundary_type="Dirichlet", g_old=g_old, g_new=g_new, f=f, xx=xx, yy=yy)
+                    L = 10 * nx * dt
+                    print(f"L is {L}")
+                    u_new = model(uold, t, dt, ninner=200, boundary_type="Dirichlet", g_old=g_old, g_new=g_new, f=f, L=L, xx=xx, yy=yy)
                 else:
-                    u_new = model(uold, t, dt, L=5, ninner=100, nouter=200, boundary_type="Dirichlet", omega=0.5, g_old=g_old, g_new=g_new,  f=f, xx=xx, yy=yy)
+                    L = nx * dt
+                    print(f"L is {L}")
+                    u_new = model(uold, t, dt, L=10, ninner=100, nouter=200, boundary_type="Dirichlet", omega=0.5, g_old=g_old, g_new=g_new,  f=f, xx=xx, yy=yy)
                 t += dt
                 if t >= T:
                     print("t has reached the final time!")

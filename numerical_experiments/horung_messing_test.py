@@ -7,18 +7,18 @@ from AI4Flood.richards_coefficients import u_exact_hm, kappa_hm, theta_hm
 from AI4Flood.misc_functions import *
 
 ### Variables that can be changed ###
-T = 0.1                                   # total length of time
+T = 0.001                                  # total length of time
 #nx_array = torch.tensor([20, 40, 80, 160])# numer of elements in each edge of mesh
 #nx_array = torch.tensor([8, 16, 32])
 #dt_array = torch.tensor([0.001, 0.0005, 0.0002, 0.0001])            # timestep array
 #dt_array = torch.tensor([0.5 * T, 0.2 * T, 0.1 * T, 0.05 * T, 0.02 * T])            # timestep array
 
 nx_array = torch.tensor([10, 20, 40, 80]) # number of elements in each edge of mesh
-dt_array = torch.tensor([0.1, 0.05, 0.02, 0.01]) # timestep array
+dt_array = 0.01 * torch.tensor([0.1, 0.05, 0.02, 0.01]) # timestep array
 #dt_array = torch.tensor([0.5 * T])
 #T_array = torch.tensor([0.001, 0.002, 0.004, 0.008])
 length = 10                                   # domain is [0, 10] x [0, 10]
-PC = False                                      # whether to use predictor corrector method
+PC = True                                      # whether to use predictor corrector method
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -55,9 +55,11 @@ with torch.no_grad():
                 g_new = u_exact_hm(xx,yy,t+dt) # boundary condition
 
                 if PC == True:
-                    u_new = model(uold, t, dt, ninner=100, boundary_type="Dirichlet", g_old=g_old, g_new=g_new, xx=xx, yy=yy)
+                    L = 1000 * nx * dt 
+                    print(f"L is {L}")
+                    u_new = model(uold, t, dt, ninner=50, boundary_type="Dirichlet", g_old=g_old, g_new=g_new, xx=xx, yy=yy)
                 else:
-                    L = 0.05 * nx / dt 
+                    L = 100 * nx * dt  
                     u_new = model(uold, t, dt, L=L, ninner=200, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new,  xx=xx, yy=yy)
                 uold = u_new.clone()
                 t += dt
