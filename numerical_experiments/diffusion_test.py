@@ -76,13 +76,15 @@ with torch.no_grad():
             uold = u_init.clone()
 
             if PC == True:
-                model = Richards_PC(zz, dx, dx, theta, kappa)
+                model = Richards_PC2(zz, dx, dx, theta, kappa)
             else:
-                model = Richards_L(zz,  dx, dx, theta, kappa)
+                model = Richards_L(zz, dx, dx, theta, kappa)
 
             while t < T:
-                g_old = u_exact(xx,yy,t)
-                g_new = u_exact(xx,yy,t + dt) # boundary condition
+                g_old = u_exact(xx, yy, t)
+                g_new = u_exact(xx, yy, t + dt) # boundary condition
+
+                # TODO: how to we apply exact bcs to multigrids?
                 
                 if PC == True:
                     L = 5 #L_factor * nx * dt

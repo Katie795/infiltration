@@ -1,4 +1,4 @@
-name: ABL
+name: flooding-env
 channels:
   - pytorch
   - conda-forge

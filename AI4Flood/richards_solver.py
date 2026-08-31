@@ -111,6 +111,23 @@ class Richards(nn.Module):
 
         return u_new
 
+    def diff_nl(self, ui, uj, g, boundary_function, q=1):
+        print(f"Size of ui is {ui.size()}")
+        print(f"Size of uj is {uj.size()}")
+        print(f"Size of g is {g.size()}")
+        
+        uui = boundary_function(ui, g=g, kappa=self.kappa, q=q) # apply dirichlet boundary condition
+        uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q) # apply dirichlet boundary condition
+
+        print(f"Size of uu is {uui.size()}")
+        print(f"Size of uj is {uuj.size()}")
+
+        div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui + self.zz))  \
+                + self.kappa(uj) * self.diff(uui + self.zz) \
+                - (ui + self.z) * self.diff(self.kappa(uuj))) # updating diffusion term
+
+        return div_k_grad_ui
+
     def apply_conditional_bcs(self, u, g=1, kappa=1, q=2):
         """Applies conditional boundary conditions onto the soil 
                 
@@ -149,33 +166,44 @@ class Richards(nn.Module):
         # This is not how seeoage boundary conditions are implemented!!
         return u_new
 
-    def F_cycle_MG(self, Au, u, k, b, D, iteration, nlevel):
+    def F_cycle_MG(self, uj, b, D, g, dt, iteration, nlevel, boundary_function):
+        ui = uj.clone()
+
 
         for MG in range(iteration):
-            a = torch.zeros((1,1,1,1)) # place to store values?
-            r = b - Au  # PDE residual 
+            a = torch.zeros((1,1,1,1)) # place to store residuals
+
+            r = b - self.diff_nl(ui, uj, g, boundary_function) * - dt   # PDE residual 
+            u_s = []
             r_s = []
             r_s.append(r)
+            u_s.append(uj)
             for i in range(1 ,nlevel): # down each
                 r = self.res(r) # restrict to smaller level
+                uj = self.res(uj)
                 r_s.append(r)
+                u_s.append(uj)
             for i in reversed(range(1, nlevel)):
-                aa = self.apply_dirichlet_bcs(a) # APPLIES BOUNDARY CONDITIONS
-                print(f"aa is {aa}")
+                aa = boundary_function(a) # APPLIES BOUNDARY CONDITIONS
+
                 if i == nlevel-1: # if in coarsest grid
                     # Largest residual
                     a = r_s[i] / D
                     print(f"a is on first level and a is {a}")
                 else:
-                    # apply diffusion to included boundary conditions
-                    a = a + self.A(aa) / D - r_s[i] / D # Jacobi iteration?
-                    print(f"a is {a}")
+                    # updating the residual to include
+                    # a = a + d
+                    # where d is the solution to Ad = r_s[i]
+                    # which is solved using a Jacobi iteration
+                    #print(f"Size of ui is {u.size()}")
+                    #print(f"Size of uj is {uj.size()}")
+                    #print(f"Size of g is {g.size()}")
+                    a = a + (r_s[i] - self.diff_nl(a, u_s[i], g, boundary_function) * - dt) / D 
                 
                 a = self.prol(a)   
-                print(f"a is prolongated and a is {a}")     
 
             u = u + a
-            #u = u + 1 / D * (b - Au) # is this right???
+            u = u + 1 / D * (b - self.diff_nl(u, uj, g, boundary_function)* -dt) 
         return u
 
 class Richards_L(Richards):
@@ -319,14 +347,14 @@ class Richards_PC(Richards):
 
         return ujplus
 
-        
-class Richards_PC_MG(Richards):
+
+
+class Richards_PC2(Richards):
     def __init__(self, zz, dx, dy, theta, kappa, drain_l=0, drain_r=0):
          super().__init__(zz, dx, dy, theta, kappa, drain_l=0, drain_r=0)
 
-    def forward(self, uold, t, dt, boundary_type, ninner=1, q=1, g=1, f=0):
+    def forward(self, uold, t, dt, boundary_type, g_old=0, g_new=0, ninner=1, q=1, f=0, L=1, xx=1, yy=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
-        L = 5 # lipschitz constant, should be 2.
  
         if boundary_type == "Dirichlet":
             boundary_function = self.apply_dirichlet_bcs
@@ -339,74 +367,52 @@ class Richards_PC_MG(Richards):
         else:
             raise Exception("Need to specify Dirichlet, Mixed, Neumann or Conditional boundary conditions")
             
-        uuold = boundary_function(uold, g=g, kappa=self.kappa, q=q)
+        uuold = boundary_function(uold, g=g_old, kappa=self.kappa, q=q)
 
         if f == 0:
             f_new = torch.tensor(0)
         else:
-            f_new = self.f(self.x[1:-1, 1:-1], self.y[1:-1, 1:-1], t + dt)
+            f_new = f(xx[1:-1, 1:-1], yy[1:-1, 1:-1], t + dt)
 
         ujplus = torch.zeros_like(uold)
         uj = uold.clone()
+        uuj = boundary_function(uj, g=g_new, kappa=self.kappa, q=q)
 
-
-        ## First calculate the residual on each level
-        iteration = 3
-        nlevel = 3
-
-        for MG in range(iteration):
-            r = f
-
-            r_s = []
-            r_s.append(r)
-
-            for i in range(1, nlevel):
-                r = self.res(r)
-                r_s.append(r)
-
-            for i in reversed(range(1, nlevel)):
-                n = 4
-
-
-
-        ## Then perform a jacobi iteration on the coarsest mesh
-
-        ## prolongate to next level
-
-        ## move to coarsest level
-
-
+        b = dt * f_new  + self.cmm(self.theta(uuold) - self.theta(uuj))
 
         for i in range(ninner):
             # predictor step
-            uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q)
+            #uuj = boundary_function(uj, g=g_new, kappa=self.kappa, q=q)
             # this is like a forward euler scheme
-            div_k_grad_uj = - 0.5 * (self.diff(self.kappa(uuj) * (uuj + self.zz)) \
-                                     + self.kappa(uj) * self.diff(uuj + self.zz) \
-                                          - (uj + self.z)* self.diff(self.kappa(uuj)))
-
-            RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) + dt * div_k_grad_uj + dt * f_new
-            ujstar =  uj + 1 / L * RHS
+            #div_k_grad_uj = 0.5 * (self.diff(self.kappa(uuj) * (uuj + self.zz)) \
+            #                         + self.kappa(uj) * self.diff(uuj + self.zz) \
+            #                              - (uj + self.z)* self.diff(self.kappa(uuj)))
+            # 
+            # RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) / dt + div_k_grad_uj + f_new
+            ujstar = self.F_cycle_MG(uj, b, self.diag, g_new, dt, 4, 3, boundary_function)
             
-            uujstar = boundary_function(ujstar, g=g, kappa=self.kappa, q=q)
+            uujstar = boundary_function(ujstar, g=g_new, kappa=self.kappa, q=q)
 
             # corrector step
             ujpred = 0.5 * (uold + ujstar)
-            uujpred = boundary_function(ujpred, g=g, kappa=self.kappa, q=q)
+            #uujpred = boundary_function(ujpred, g=g_new, kappa=self.kappa, q=q)
 
-            div_k_grad_uj_pred = - 0.5 * (self.diff(self.kappa(uujpred) * (uujpred + self.zz)) \
-                                          + self.kappa(ujpred) * self.diff(uujpred + self.zz) \
-                                            - (ujpred + self.z)* self.diff(self.kappa(uujpred)))
+            #div_k_grad_uj_pred = 0.5 * (self.diff(self.kappa(uujpred) * (uujpred + self.zz)) \
+            #                              + self.kappa(ujpred) * self.diff(uujpred + self.zz) \
+            #                                - (ujpred + self.z) * self.diff(self.kappa(uujpred )))
 
-            RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar)) + dt * div_k_grad_uj_pred
-            ujplus = (uj + 1 / L * RHS_pred).clone()
-            #ujplus = self.apply_malago_infiltration_bcs(ujplus, q)
+            #RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar))/ dt + div_k_grad_uj_pred + f_new
+            ujplus = self.F_cycle_MG(ujpred, b, self.diag, g_new, dt, 4, 3, boundary_function)
 
             assert torch.isinf(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
             assert torch.isnan(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
             
             if torch.sqrt(torch.mean((ujplus - uj)**2)) <= 1e-12:
                 print(f"Iterations converged after {i+1} iterations")
+                break
+
+            if i == ninner - 1:
+                print(f"PC scheme has not converged, error is {torch.sqrt(torch.mean((ujplus - uj)**2))}")
                 break
 
             uj = ujplus.clone()
