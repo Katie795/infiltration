@@ -9,7 +9,7 @@ from AI4Flood.misc_functions import *
 torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
-nx_array = torch.tensor([7, 15, 31, 63]) # number of elements in each edge of mesh
+nx_array = torch.tensor([5, 13, 29, 61]) # number of elements in each edge of mesh
 
 # THIS NOW NEEDS TO BE DIVISIBLE BY 4!!!
 dt_array = 0.01 * torch.tensor([0.1, 0.05, 0.02, 0.01]) # timestep array
