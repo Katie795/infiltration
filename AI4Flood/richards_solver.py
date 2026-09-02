@@ -39,6 +39,8 @@ class Richards(nn.Module):
 
     def restrict_grid(self, n):
 
+        print(f"dx is {self.dx}")
+
         new_dx = 2 ** n * self.dx
         new_dy = 2 ** n * self.dy
         print(self.dx)
@@ -48,8 +50,10 @@ class Richards(nn.Module):
         print(self.yy)
 
 
-        new_nx = int(len(self.xx[0] - 2) / 2 ** n) + 2
-        new_ny = int(len(self.xx[:,0] - 2) / 2 ** n) + 2
+        new_nx = int((len(self.xx[0]) - 2) / 2 ** n) + 2
+        new_ny = int((len(self.xx[:,0]) - 2) / 2 ** n) + 2
+
+        print(f"New n_x is {new_nx}")
 
         x_coords = torch.zeros((new_ny, new_nx))
         y_coords = torch.zeros((new_ny, new_nx))
