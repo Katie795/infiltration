@@ -11,7 +11,7 @@ torch.set_default_dtype(torch.float64)
 ### Variables that can be changed ###
 nx_array = torch.tensor([7, 15, 31, 63]) # number of elements in each edge of mesh
 ## number of elements should be 2^n + 1 
-
+nlevels = [3, 4, 5, 6]
 
 # THIS NOW NEEDS TO BE DIVISIBLE BY 4!!!
 dt_array = 0.01 * torch.tensor([0.1, 0.05, 0.02, 0.01]) # timestep array
@@ -66,9 +66,12 @@ else:
 with torch.no_grad():
     for dt in dt_array:
         L2_error_dx = []
+        i=0
         for nx in nx_array:
             t=0
             dx = length / nx
+
+            nlevel = nlevels[i]
 
             x, y, xx, yy = generate_csv_files(nx, nx, length, length, name="testing")
             zz = torch.zeros_like(yy)
@@ -83,12 +86,11 @@ with torch.no_grad():
                 model = Richards_L(zz, dx, dx, theta, kappa, xx, yy)
 
             while t < T:
-                # TODO: how to we apply exact bcs to multigrids?
                 
                 if PC == True:
                     L = 5 #L_factor * nx * dt
 
-                    u_new = model(uold, t, dt, ninner=10, boundary_type="Dirichlet", g=u_exact, f=f, L=L)
+                    u_new = model(uold, t, dt, ninner=1, boundary_type="Dirichlet", g=u_exact, f=f, iteration=10, nlevel=3)
                 else:
                     L = 5 #L_factor * nx * dt
    
@@ -101,6 +103,8 @@ with torch.no_grad():
 
             error = u_new - u_exact(x, y, t) # spatial error
             L2_error_dx.append(torch.sqrt(torch.mean((u_new - u_exact(x, y, t))**2)).cpu().numpy())
+            plot_tensor(x.cpu(), y.cpu(), torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
+            i += 1
 
         L2_error.append(L2_error_dx)
 
