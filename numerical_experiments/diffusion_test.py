@@ -9,7 +9,9 @@ from AI4Flood.misc_functions import *
 torch.set_default_dtype(torch.float64)
 
 ### Variables that can be changed ###
-nx_array = torch.tensor([5, 13, 29, 61]) # number of elements in each edge of mesh
+nx_array = torch.tensor([7, 15, 31, 63]) # number of elements in each edge of mesh
+## number of elements should be 2^n + 1 
+
 
 # THIS NOW NEEDS TO BE DIVISIBLE BY 4!!!
 dt_array = 0.01 * torch.tensor([0.1, 0.05, 0.02, 0.01]) # timestep array
@@ -81,18 +83,15 @@ with torch.no_grad():
                 model = Richards_L(zz, dx, dx, theta, kappa, xx, yy)
 
             while t < T:
-                #g_old = u_exact(xx, yy, t)
-                #g_new = u_exact(xx, yy, t + dt) # boundary condition
-
                 # TODO: how to we apply exact bcs to multigrids?
                 
                 if PC == True:
                     L = 5 #L_factor * nx * dt
-                    print(f"L is {L}")
+
                     u_new = model(uold, t, dt, ninner=10, boundary_type="Dirichlet", g=u_exact, f=f, L=L)
                 else:
                     L = 5 #L_factor * nx * dt
-                    print(f"L is {L}")
+   
                     u_new = model(uold, t, dt, L=10, ninner=100, nouter=200, boundary_type="Dirichlet", omega=0.5, g_old=g_old, g_new=g_new, f=f)
                 t += dt
                 if t >= T:
@@ -101,22 +100,6 @@ with torch.no_grad():
                 uold = u_new.clone()
 
             error = u_new - u_exact(x, y, t) # spatial error
-            #print("Model solution on boundary is:")
-            #print(u_new[0,0,0,:])
-            #print(u_new[0,0,-1,:])
-            #print(u_new[0,0,:,0])
-            #print(u_new[0,0,:,-1])
-
-            #print("Exact solution on boundary is:")
-            #print(u_exact(x, y, t)[0,0,0,:])
-            #print(u_exact(x, y, t)[0,0,-1,:])
-            #print(u_exact(x, y, t)[0,0,:,0])
-            #print(u_exact(x, y, t)[0,0,:,-1])
-
-            #plot_tensor(xx, yy, u_exact(xx,yy, t)[0,0,:,:].cpu().numpy(), "exact_solution")
-            #plot_tensor(x, y, u_new[0,0,:,:].cpu().numpy(), "model_solution")
-            #plot_tensor(x, y, torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
-
             L2_error_dx.append(torch.sqrt(torch.mean((u_new - u_exact(x, y, t))**2)).cpu().numpy())
 
         L2_error.append(L2_error_dx)

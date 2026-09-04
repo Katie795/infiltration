@@ -37,38 +37,59 @@ class Richards(nn.Module):
         self.cmm.bias.data = bias
         self.A.bias.data = bias
 
-    def restrict_grid(self, n):
+    def restrict_grid(self, xx, yy):
 
-        print(f"dx is {self.dx}")
+        x = xx[1:-1, 1:-1] # eliminating padding
+        y = yy[1:-1, 1:-1]
 
-        new_dx = 2 ** n * self.dx
-        new_dy = 2 ** n * self.dy
-        print(self.dx)
-        print(new_dx)
+        x_new = x[::2, ::2] # every second value
+        y_new = y[::2, ::2]
 
-        print(self.xx)
-        print(self.yy)
+        xx_new = torch.nn.functional.pad(x_new, (1,1,1,1), mode="constant", value=0)
+        yy_new = torch.nn.functional.pad(y_new, (1,1,1,1), mode="constant", value=0)
 
+        new_dx = 2 * (x[0, 1] - x[0, 0])
+        new_dy = 2 * (y[0, 0] - y[1, 0])
 
-        new_nx = int((len(self.xx[0]) - 2) / 2 ** n) + 2
-        new_ny = int((len(self.xx[:,0]) - 2) / 2 ** n) + 2
+        xx_new[1:-1, 0] = xx_new[1:-1, 1] - new_dx 
+        xx_new[1:-1, -1] = xx_new[1:-1, -2] + new_dx 
+        xx_new[0] = xx_new[1]
+        xx_new[-1] = xx_new[-2] 
 
-        print(f"New n_x is {new_nx}")
+        yy_new[0, 1:-1] = yy_new[1, 1:-1] + new_dy
+        yy_new[-1, 1:-1] = yy_new[-2, 1:-1] - new_dy
+        yy_new[:, 0] = yy_new[:, 1]
+        yy_new[:, -1] = yy_new[:, -2]
+        
+        return xx_new, yy_new
 
-        x_coords = torch.zeros((new_ny, new_nx))
-        y_coords = torch.zeros((new_ny, new_nx))
-        for i in range(new_nx):
-            for j in range(new_ny):
-                x_coords[j][i] = new_dx * (i - 1)
-                y_coords[j][i] = new_dx * new_ny - new_dx * (j - 1)
+    def restrict_grid2(self, xx, yy):
 
-        print(x_coords)
-        print(y_coords)
+        x = xx[1:-1, 1:-1] # eliminating padding
+        y = yy[1:-1, 1:-1]
+        x = x[None, None, :, :]
+        y = y[None, None, :, :]
 
-        return x_coords, y_coords
+        x_new = self.res(x)# every second value
+        y_new = self.res(y)
 
+        xx_new = torch.nn.functional.pad(x_new, (1,1,1,1), mode="constant", value=0)[0,0]
+        yy_new = torch.nn.functional.pad(y_new, (1,1,1,1), mode="constant", value=0)[0,0]
 
+        new_dx = 2 * (x[0, 0, 0, 1] - x[0, 0, 0, 0])
+        new_dy = 2 * (y[0, 0, 0, 0] - y[0, 0, 1, 0])
 
+        xx_new[1:-1, 0] = xx_new[1:-1, 1] - new_dx 
+        xx_new[1:-1, -1] = xx_new[1:-1, -2] + new_dx 
+        xx_new[0] = xx_new[1]
+        xx_new[-1] = xx_new[-2] 
+
+        yy_new[0, 1:-1] = yy_new[1, 1:-1] + new_dy
+        yy_new[-1, 1:-1] = yy_new[-2, 1:-1] - new_dy
+        yy_new[:, 0] = yy_new[:, 1]
+        yy_new[:, -1] = yy_new[:, -2]
+        
+        return xx_new, yy_new
 
     def apply_dirichlet_bcs(self, u, g=0, kappa=1, q=0, t=0, xx=0, yy=0):
         """Applies a boundary condition g to a function u.
@@ -80,16 +101,11 @@ class Richards(nn.Module):
 
         # adding padding to tensor
         u_new = torch.nn.functional.pad(u, (1,1,1,1), mode="constant", value=0)
-
+        
         if isinstance(g, int):
             g_t = torch.zeros_like(u_new)
         else:
-            if type(xx)==int:
-                xx = self.xx
-                yy = self.yy
             g_t = g(xx, yy, t)
-
-        print(f"Shape of g is {g_t.shape}")
 
         u_new[0,0,0,:] = g_t[0,0,0,:]    # top dirichlet
         u_new[0,0,:,0] = g_t[0,0,:,0]    # left dirichlet
@@ -151,14 +167,19 @@ class Richards(nn.Module):
 
         return u_new
 
-    def diff_nl(self, ui, uj, g, boundary_function, q=1, t=0):
-        
-        uui = boundary_function(ui, g=g, kappa=self.kappa, q=q, t=t) # apply dirichlet boundary condition
-        uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q, t=t) # apply dirichlet boundary condition
+    def diff_nl(self, ui, uj, g, boundary_function, q=1, t=0, xx=0, yy=0, zz=0):
 
-        div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui + self.zz))  \
-                + self.kappa(uj) * self.diff(uui + self.zz) \
-                - (ui + self.z) * self.diff(self.kappa(uuj))) # updating diffusion term
+        if zz == 0:
+            z = 0
+        else:
+            z = zz[1:-1, 1:-1]
+        
+        uui = boundary_function(ui, g=g, kappa=self.kappa, q=q, t=t, xx=xx, yy=yy) # apply dirichlet boundary condition
+        uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q, t=t, xx=xx, yy=yy) # apply dirichlet boundary condition
+
+        div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui + zz))  \
+                + self.kappa(uj) * self.diff(uui + zz) \
+                - (ui + z) * self.diff(self.kappa(uuj))) # updating diffusion term
 
         return div_k_grad_ui
 
@@ -202,49 +223,61 @@ class Richards(nn.Module):
 
     def F_cycle_MG(self, uj, b, D, g, t, dt, iteration, nlevel, boundary_function):
         ui = uj.clone()
+        uj_org = uj.clone()
         tnew = t + dt
         xx = self.xx
         yy = self.yy
 
-        self.restrict_grid(1)
+        u_s = []
+        x_s = []
+        y_s = []
+        z_s = []
+        x_s.append(xx)
+        y_s.append(yy)
+        u_s.append(uj_org)
+
+        for i in range(1, nlevel):
+            uj = self.res(uj)
+            #zz = self.res(zz)
+            xx, yy = self.restrict_grid2(xx, yy)
+
+            u_s.append(uj)
+            x_s.append(xx)
+            y_s.append(yy)
+            #zz = self.zz
+            #z_s.append(zz) # TODO: this needs fixed as well
 
         for MG in range(iteration):
-            a = torch.zeros((1,1,1,1)) # place to store residuals
-
-            r = b - self.diff_nl(ui, uj, g, boundary_function) * - dt   # PDE residual 
-
-            u_s = []
+            r = b - self.diff_nl(ui, uj_org, g, boundary_function, xx=self.xx, yy=self.yy) * - dt   # PDE residual 
             r_s = []
             r_s.append(r)
-            u_s.append(uj)
-
-            print(f"xx is {xx}")
-            for i in range(1 ,nlevel): # down each
+            
+            for i in range(1, nlevel): # down each
                 r = self.res(r) # restrict to smaller level
-                uj = self.res(uj)
-
                 r_s.append(r)
-                u_s.append(uj)
+
+            a = torch.zeros_like(xx[1:-1, 1:-1]) # place to store residuals
+            a = a[None, None, :, :]
 
             for i in reversed(range(1, nlevel)):
-                aa = boundary_function(a, g=g, t=tnew, xx=xx_s[i], yy=xx_s[i]) # APPLIES BOUNDARY CONDITIONS
+                aa = boundary_function(a, g=g, t=tnew, xx=x_s[i], yy=x_s[i]) # APPLIES BOUNDARY CONDITIONS
 
                 if i == nlevel-1: # if in coarsest grid
                     # Largest residual
                     a = r_s[i] / D
-                    print(f"a is on first level and a is {a}")
                 else:
                     # updating the residual to include
                     # a = a + d
                     # where d is the solution to Ad = r_s[i]
                     # which is solved using a Jacobi iteration
-                    a = a + (r_s[i] - self.diff_nl(a, u_s[i], g, boundary_function) * - dt) / D 
+                    a = a + (r_s[i] - self.diff_nl(a, u_s[i], g, boundary_function, xx=x_s[i], yy=x_s[i], zz=0) * - dt) / D 
                 
                 a = self.prol(a)   
 
-            u = u + a
-            u = u + 1 / D * (b - self.diff_nl(u, uj, g, boundary_function)* -dt) 
-        return u
+            ui = ui + a
+            ui = ui + 1 / D * (b - self.diff_nl(ui, uj_org, g, boundary_function, xx=self.xx, yy=self.yy)* -dt) 
+
+        return ui
 
 class Richards_L(Richards):
     def __init__(self, zz, dx, dy,  theta, kappa, xx, yy, drain_l=0, drain_r=0):
@@ -407,7 +440,7 @@ class Richards_PC2(Richards):
         else:
             raise Exception("Need to specify Dirichlet, Mixed, Neumann or Conditional boundary conditions")
             
-        uuold = boundary_function(uold, g=g, kappa=self.kappa, q=q, t=t)
+        uuold = boundary_function(uold, g=g, kappa=self.kappa, q=q, t=t, xx=self.xx, yy=self.yy)
         tnew = t + dt
 
         if f == 0:
@@ -417,33 +450,18 @@ class Richards_PC2(Richards):
 
         ujplus = torch.zeros_like(uold)
         uj = uold.clone()
-        uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q, t=tnew)
+        uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy)
 
         b = dt * f_new  + self.cmm(self.theta(uuold) - self.theta(uuj))
 
         for i in range(ninner):
             # predictor step
-            #uuj = boundary_function(uj, g=g_new, kappa=self.kappa, q=q)
-            # this is like a forward euler scheme
-            #div_k_grad_uj = 0.5 * (self.diff(self.kappa(uuj) * (uuj + self.zz)) \
-            #                         + self.kappa(uj) * self.diff(uuj + self.zz) \
-            #                              - (uj + self.z)* self.diff(self.kappa(uuj)))
-            # 
-            # RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) / dt + div_k_grad_uj + f_new
-            ujstar = self.F_cycle_MG(uj, b, self.diag, g, t, dt, 3, 2, boundary_function)
-            
-            uujstar = boundary_function(ujstar, g=g, kappa=self.kappa, q=q, t=tnew)
+            ujstar = self.F_cycle_MG(uj, b, self.diag, g, t, dt, 3, 3, boundary_function)
+            uujstar = boundary_function(ujstar, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy)
 
             # corrector step
             ujpred = 0.5 * (uold + ujstar)
-            #uujpred = boundary_function(ujpred, g=g_new, kappa=self.kappa, q=q)
-
-            #div_k_grad_uj_pred = 0.5 * (self.diff(self.kappa(uujpred) * (uujpred + self.zz)) \
-            #                              + self.kappa(ujpred) * self.diff(uujpred + self.zz) \
-            #                                - (ujpred + self.z) * self.diff(self.kappa(uujpred )))
-
-            #RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar))/ dt + div_k_grad_uj_pred + f_new
-            ujplus = self.F_cycle_MG(ujpred, b, self.diag, g_new, t, dt, 4, 3, boundary_function)
+            ujplus = self.F_cycle_MG(ujpred, b, self.diag, g, t, dt, 3, 3, boundary_function)
 
             assert torch.isinf(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
             assert torch.isnan(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
