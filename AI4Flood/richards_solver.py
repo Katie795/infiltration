@@ -169,22 +169,6 @@ class Richards(nn.Module):
 
         return u_new
 
-    def diff_nl(self, uui, uuj, g, boundary_function, q=1, t=0, xx=0, yy=0, zz=0):
-
-        ui = uui[:, :, 1:-1, 1:-1]
-        uj = uuj[:, :, 1:-1, 1:-1]
-
-        if zz == 0:
-            z = 0
-        else:
-            z = zz[1:-1, 1:-1]
-    
-        div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui + zz))  \
-                + self.kappa(uj) * self.diff(uui + zz) \
-                - (ui + z) * self.diff(self.kappa(uuj))) # updating diffusion term
-
-        return div_k_grad_ui
-
     def A_nonlinear(self, uui, uuj, dt, zz=0):
 
         ui = uui[:, :, 1:-1, 1:-1]
@@ -283,6 +267,7 @@ class Richards(nn.Module):
             - (ui + z) * self.diff(self.kappa(uuj))) # updating diffusion term
 
         return L * ui - 0.5 * dt * div_k_grad_ui
+
 
     def apply_conditional_bcs(self, u, g=1, kappa=1, q=2):
         """Applies conditional boundary conditions onto the soil 
