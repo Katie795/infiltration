@@ -17,7 +17,7 @@ nlevels = [3, 4, 5, 6]
 dt_array = 0.01 * torch.tensor([0.1, 0.05, 0.02, 0.01]) # timestep array
 length = 1                           # domain is [0, 1] x [0, 1]
 T = 0.01 * 0.1                             # total length of time
-KAPPA = False                        # whether to include nonlinear kappa
+KAPPA = True                        # whether to include nonlinear kappa
 PC = True                            # predictor corrector method or L method
 L_factor = 100
 

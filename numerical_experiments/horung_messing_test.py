@@ -41,19 +41,15 @@ with torch.no_grad():
             uold = u_init.clone()
 
             if PC == True:
-                model = Richards_PC(zz, dx, dx, theta_hm, kappa_hm)
+                model = Richards_PC2(zz, dx, dx, theta_hm, kappa_hm, xx, yy)
             else:
                 model = Richards_L(zz,  dx, dx, theta_hm, kappa_hm)
 
             while t < T:
-
-                g_old = u_exact_hm(xx,yy,t) # boundary condition
-                g_new = u_exact_hm(xx,yy,t+dt) # boundary condition
-
                 if PC == True:
                     L = 5 # L_factor * nx * dt 
                     print(f"L is {L}")
-                    u_new = model(uold, t, dt, ninner=50, boundary_type="Dirichlet", g_old=g_old, g_new=g_new, xx=xx, yy=yy)
+                    u_new = model(uold, t, dt, ninner=1, boundary_type="Dirichlet", L=2, g=u_exact_hm)
                 else:
                     L = 5 #L_factor * nx * dt  
                     u_new = model(uold, t, dt, L=L, ninner=200, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new,  xx=xx, yy=yy)

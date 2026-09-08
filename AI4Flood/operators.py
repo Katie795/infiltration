@@ -67,6 +67,3 @@ def get_weights_linear_2D(dx):
 
     return w_diff, wm1, wA, w_res, diag, bias
 
-
-    
-
