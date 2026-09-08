@@ -90,7 +90,7 @@ with torch.no_grad():
                 if PC == True:
                     L = 5 #L_factor * nx * dt
 
-                    u_new = model(uold, t, dt, ninner=1, boundary_type="Dirichlet", g=u_exact, f=f, iteration=10, nlevel=3)
+                    u_new = model(uold, t, dt, ninner=1, boundary_type="Dirichlet", g=u_exact, f=f, iteration=1, nlevel=3)
                 else:
                     L = 5 #L_factor * nx * dt
    
@@ -110,9 +110,16 @@ with torch.no_grad():
 
 dx = 1/(nx_array.cpu().numpy())
 L2_error = np.array(L2_error)
-
+print(f"L2 error for dt = {dt_array[0]} is:")
+print(L2_error[0])
+print(f"L2 error for dt = {dt_array[1]} is:")
+print(L2_error[1])
+print(f"L2 error for dt = {dt_array[2]} is:")
+print(L2_error[2])
+print(f"L2 error for dt = {dt_array[3]} is:")
+print(L2_error[3])
 ### convergence plot ###
-print(f"L2_error is {np.array(L2_error_dx)}")
+
 marker = ["o", "x", "s", "^", ">"]
 
 ### convergence plot ###
