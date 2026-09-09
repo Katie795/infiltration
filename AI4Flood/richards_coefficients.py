@@ -1,19 +1,19 @@
 ### Coefficients for Richards equation ###
 import torch
 
-def theta_hm(s):
-    """theta(s) in the Horung-Messing test. Here
-    theta(s) = pi**2/2 - 2 arctan(s)**2 if s < 0,
+def theta_hm(u):
+    """theta(u) in the Horung-Messing test. Here
+    theta(u) = pi**2/2 - 2 arctan(u)**2 if s < 0,
              = pi**2/2                  if s > 0.
     
-    :args s: input where s = x - y - t
+    :args u: input
     """
-    s = s[0, 0]  # still assumes (1,1,n,n)
+    u = u[0, 0]  # still assumes (1,1,n,n)
 
     base = 0.5 * torch.pi**2
-    atan_term = 2 * torch.atan(s)**2
+    atan_term = 2 * torch.atan(u)**2
 
-    ans = torch.where(s < 0, base - atan_term, base)
+    ans = torch.where(u < 0, base - atan_term, base)
 
     return ans.unsqueeze(0).unsqueeze(0)
 
@@ -34,19 +34,19 @@ def theta_prime_hm(s):
     return torch.unsqueeze(torch.unsqueeze(ans, 0),0)
 
 
-def kappa_hm(s):
-    """kappa_hm(s) in the Horung-Messing test. Here
-    kappa_hm(s) = 2 / (1 + s**2) if s < 0,
+def kappa_hm(u):
+    """kappa_hm(u) in the Horung-Messing test. Here
+    kappa_hm(u) = 2 / (1 + u**2) if s < 0,
              = 2              if s > 0.
     
-    :args s: input where s = x - y - t
+    :args s: input 
     """
-    s = s[0, 0]
+    u = u[0, 0]
 
     base = 2.0
-    kappa_left = 2.0 / (1.0 + s **2 ) 
+    kappa_left = 2.0 / (1.0 + u **2 ) # TODO: some confusion as to what this is
 
-    ans = torch.where(s < 0, kappa_left, base)
+    ans = torch.where(u < 0, kappa_left, base)
 
     return ans.unsqueeze(0).unsqueeze(0)
 

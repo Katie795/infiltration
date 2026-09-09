@@ -67,3 +67,26 @@ def get_weights_linear_2D(dx):
 
     return w_diff, wm1, wA, w_res, diag, bias
 
+def construct_diff_filter(dx):
+
+    w_diff = torch.tensor([[[[1/3/dx**2], # Diffusion operator
+                         [1/3/dx**2], 
+                         [1/3/dx**2]],
+
+                        [[1/3/dx**2], 
+                         [-8/3/dx**2], 
+                         [1/3/dx**2]],
+
+                        [[1/3/dx**2],
+                         [1/3/dx**2], 
+                         [1/3/dx**2]]]])
+
+    w_diff = torch.reshape(w_diff,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
+    bias = torch.tensor([0.0])
+
+    diff = torch.nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
+    diff.weight.data = w_diff
+    diff.bias.data = bias
+    return diff
+
+

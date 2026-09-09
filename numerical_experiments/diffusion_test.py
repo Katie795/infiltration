@@ -90,7 +90,7 @@ with torch.no_grad():
                 if PC == True:
                     L = 5 #L_factor * nx * dt
 
-                    u_new = model(uold, t, dt, ninner=1, boundary_type="Dirichlet", g=u_exact, f=f, iteration=1, nlevel=3)
+                    u_new = model(uold, t, dt, ninner=1, boundary_type="Dirichlet", g=u_exact, f=f, iteration=1, nlevel=nlevels[i])
                 else:
                     L = 5 #L_factor * nx * dt
    

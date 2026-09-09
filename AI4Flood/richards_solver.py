@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from AI4Flood.operators import get_weights_linear_2D
+from AI4Flood.operators import get_weights_linear_2D, construct_diff_filter
 from AI4Flood.misc_functions import jacobi, jacobi2
 
 class Richards(nn.Module):
@@ -217,27 +217,29 @@ class Richards(nn.Module):
 
         return ui - 0.5 * dt * div_k_grad_ui
 
-    def A_L(self, uui, uuj, dt, L=1, zz=0):
+    def A_L(self, uui, Kk, dt, dx, L=1, zz=0):
 
         ui = uui[:, :, 1:-1, 1:-1]
-        uj = uuj[:, :, 1:-1, 1:-1]
+        K = Kk[:, :, 1:-1, 1:-1]
 
         if zz == 0:
             z = 0
         else:
             z = zz[1:-1, 1:-1]
 
-        div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui + zz))  \
-            + self.kappa(uj) * self.diff(uui + zz) \
-            - (ui + z) * self.diff(self.kappa(uuj))) # updating diffusion term
+        diff = construct_diff_filter(dx)
+
+        div_k_grad_ui = 0.5 * (diff(Kk * (uui + zz))  \
+            + K * diff(uui + zz) \
+            - (ui + z) * diff(Kk)) # updating diffusion term
 
         return L * ui - dt * div_k_grad_ui
 
-    def A_L_corr(self, uui, uuj, uuold, dt, L=1, zz=0):
+    def A_L_corr(self, uui, Kk, uuold, dt, dx, L=1, zz=0):
         """Here L=1 corresponds to the standard heat equation"""
 
         ui = uui[:, :, 1:-1, 1:-1]
-        uj = uuj[:, :, 1:-1, 1:-1]
+        K = Kk[:, :, 1:-1, 1:-1]
         uold = uuold[:, :, 1:-1, 1:-1]
 
         if zz == 0:
@@ -245,26 +247,30 @@ class Richards(nn.Module):
         else:
             z = zz[1:-1, 1:-1]
 
-        div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (0.5 *(uui + uuold)+ zz))  \
-                + self.kappa(uj) * self.diff(0.5 *(uui + uuold) + zz) \
-                - (0.5 *(ui + uold) + z) * self.diff(self.kappa(uuj))) # updating diffusion term
+        diff = construct_diff_filter(dx)
+
+        div_k_grad_ui = 0.5 * (diff(Kk * (0.5 *(uui + uuold) + zz))  \
+                + K * diff(0.5 *(uui + uuold) + zz) \
+                - (0.5 *(ui + uold) + z) * diff(Kk)) # updating diffusion term
 
         return L * ui - dt * div_k_grad_ui
 
-    def A_L_corr_res(self, uui, uuj, dt, L=1, zz=0):
+    def A_L_corr_res(self, uui, Kk, dt, dx, L=1, zz=0):
         """Here L=1 corresponds to the standard heat equation"""
 
         ui = uui[:, :, 1:-1, 1:-1]
-        uj = uuj[:, :, 1:-1, 1:-1]
+        K = Kk[:, :, 1:-1, 1:-1]
 
         if zz == 0:
             z = 0
         else:
             z = zz[1:-1, 1:-1]
 
-        div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui + zz))  \
-            + self.kappa(uj) * self.diff(uui + zz) \
-            - (ui + z) * self.diff(self.kappa(uuj))) # updating diffusion term
+        diff = construct_diff_filter(dx)
+
+        div_k_grad_ui = 0.5 * (diff(Kk* (uui + zz))  \
+            + K * diff(uui + zz) \
+            - (ui + z) * diff(Kk)) # updating diffusion term
 
         return L * ui - 0.5 * dt * div_k_grad_ui
 
@@ -310,6 +316,7 @@ class Richards(nn.Module):
     def V_cycle_MG(self, uj, b, g, t, dt, boundary_function, iteration=1, nlevel=1, phase="pred", uold=0, L=1):
         xx = self.xx
         yy = self.yy
+        dx = xx[0, 1] - xx[0, 0]
         tnew = t + dt
         ui = uj.clone()
         uuj = boundary_function(uj, g=g, kappa=self.kappa, t=tnew, xx=xx, yy=yy) # apply dirichlet boundary condition
@@ -319,11 +326,20 @@ class Richards(nn.Module):
         y_s = []
         z_s = []
         D_s = []
+        dx_s = []
+        Kk_s = []
         x_s.append(xx)
         y_s.append(yy)
         uu_s.append(uuj)
+        dx_s.append(dx)
         diff_diag = self.diag
-        D = L + diff_diag * dt * self.kappa(ui)
+        Kk = self.kappa(uuj)
+        Kk_s.append(Kk)
+
+        if phase == "pred":
+            D = L +  diff_diag * dt * Kk[:,:,1:-1, 1:-1]
+        elif phase == "corr":
+            D = L + 0.5 * diff_diag * dt * Kk[:,:,1:-1, 1:-1]
         D_s.append(D)
 
         if phase == "pred":
@@ -334,33 +350,46 @@ class Richards(nn.Module):
             print("Need to specify whether the phase is 'pred' or 'corr'")
 
         for i in range(1, nlevel):
+  
             uj = self.res(uj)
-            #zz = self.res(zz)
             xx, yy = self.restrict_grid2(xx, yy)
+            uuj = boundary_function(uj, g=g, kappa=self.kappa, t=tnew, xx=xx, yy=yy)
+            Kk = self.kappa(uuj)
+   
+            #zz = self.res(zz)
+
+            dx = 2 * dx
             diff_diag = 0.25 * diff_diag
             if phase == "pred":
-                D = L + dt * diff_diag * self.kappa(uj)
+                D = L +  dt * diff_diag * Kk[:,:,1:-1,1:-1]
             elif phase == "corr":
-                D = L + 0.5 * dt * diff_diag * self.kappa(uj)
-
-            uuj = boundary_function(uj, g=g, kappa=self.kappa, t=tnew, xx=xx, yy=yy)
+                D = L + 0.5 * dt * diff_diag * Kk[:,:,1:-1,1:-1]
 
             uu_s.append(uuj)
             x_s.append(xx)
             y_s.append(yy)
             D_s.append(D)
-            #zz = self.zz
-            #z_s.append(zz) # TODO: this needs fixed as well
-  
+            dx_s.append(dx)
+            Kk_s.append(Kk)
 
+            #zz = self.zz
+            #z_s.append(zz) # TODO: this needs fixed as well 
+        
         for MG in range(iteration):
             uui = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy) # apply dirichlet boundary condition
-            uuj = boundary_function(uu_s[0][:,:,1:-1,1:-1], g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy) # apply dirichlet boundary condition
+            uuj = uu_s[0] # apply dirichlet boundary condition
 
             if phase == "pred":
-                r = b - self.A_L(uui, uuj, dt, L=L)   # PDE residual 
+                for j in range(3): # Jacobi relaxation
+                    r = b - self.A_L(uui, Kk_s[0], dt, dx=dx_s[0], L=L)
+                    ui = ui + 0.5 * r / D_s[0]
+                    uui = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy) # apply dirichlet boundary condition
+
             else:
-                r = b - self.A_L_corr(uui, uuj, uuold, dt, L=L)
+                for _ in range(3): # Jacobi relaxation
+                    r = b - self.A_L_corr(uui, Kk_s[0], uuold, dt, dx=dx_s[0], L=L)
+                    ui = ui + 0.5 * r/ D_s[0]
+                    uui = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy) # apply dirichlet boundary condition
             r_s = []
             r_s.append(r)
             
@@ -372,31 +401,31 @@ class Richards(nn.Module):
             a = a[None, None, :, :]
 
             for i in reversed(range(1, nlevel)):
+
                 aa = self.apply_dirichlet_bcs(a, g=0, t=tnew, xx=x_s[i], yy=y_s[i]) # APPLIES BOUNDARY CONDITIONS
                 # TODO: this is only correct when applying to dirichlet problems
                 if i == nlevel-1: # if in coarsest grid
                     # Largest residual
                     a = r_s[i] / D_s[i]
-                else:
-                    # updating the residual to include
-                    # a = a + d
-                    # where d is the solution to Ad = r_s[i]
-                    # which is solved using a Jacobi iteration
-                
+                else:   
                     if phase == "pred":
-                        a += (r_s[i] - self.A_L(aa, uu_s[i], dt, L=L)) / D_s[i]
+                        for _ in range(3):
+                            a += (r_s[i] - self.A_L(aa, Kk_s[i], dt, dx=dx_s[i], L=L)) / D_s[i]
+                            aa = self.apply_dirichlet_bcs(a, g=0, t=tnew, xx=x_s[i], yy=y_s[i])
                     elif phase == "corr":
-                        a += (r_s[i] - self.A_L_corr_res(aa, uu_s[i], dt, L=L)) / D_s[i]
-                
-                a = self.prol(a)   
+                        for _ in range(3):
+                            a += (r_s[i] - self.A_L_corr_res(aa, Kk_s[i], dt, dx=dx_s[i], L=L)) / D_s[i]
+                            aa = self.apply_dirichlet_bcs(a, g=0, t=tnew, xx=x_s[i], yy=y_s[i])
+            
+                a = self.prol(a) 
 
             ui = ui + a
             uui = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy)
             
             if phase == "pred":
-                ui = ui + 1 / D_s[0] * (b - self.A_L(uui, uuj, dt, L=L)) 
+                ui = ui + 1 / D_s[0] * (b - self.A_L(uui, Kk_s[0], dt, dx=dx_s[0], L=L)) 
             else:
-                ui = ui + 1 / D_s[0] * (b - self.A_L_corr(uui, uuj, uuold, dt, L=L)) 
+                ui = ui + 1 / D_s[0] * (b - self.A_L_corr(uui, Kk_s[0], uuold, dt, dx=dx_s[0], L=L)) 
 
         return ui
 
@@ -404,7 +433,7 @@ class Richards_L(Richards):
     def __init__(self, zz, dx, dy,  theta, kappa, xx, yy, drain_l=0, drain_r=0):
          super().__init__(zz, dx, dy, theta, kappa, xx, yy, drain_l=0, drain_r=0)
 
-    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g_old=1, g_new=1, f=0):
+    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, omega=1, q=1, g=0, f=0):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
         # Choose which boundary function to use
@@ -419,13 +448,17 @@ class Richards_L(Richards):
         else:
             raise Exception("Need to specify Dirichlet, Mixed or Neumann boundary conditions")
 
+        #g_old = g(self.xx, self.yy, t)
+        #g_new = g(self.xx, self.yy, t + dt)
+        tnew = t + dt
+
         uj = uold.clone()
-        uuold = boundary_function(uold, g=g_old, kappa=self.kappa, q=q)
+        uuold = boundary_function(uold, g=g, kappa=self.kappa, q=q, t=torch.tensor(t), xx=self.xx, yy=self.yy)
         
         if f == 0:
             f_new = torch.tensor(0)
         else:
-            f_new = f(self.xx[1:-1, 1:-1], self.yy[1:-1, 1:-1], t + dt)
+            f_new = f(self.xx[1:-1, 1:-1], self.yy[1:-1, 1:-1], tnew)
 
         D = torch.tensor([self.diag * dt * torch.max(self.kappa(uold)) + L])
 
@@ -433,13 +466,13 @@ class Richards_L(Richards):
 
             uiplus = torch.zeros_like(uj) # set up jacobi iteration
             ui = uj.clone()
-            uuj = boundary_function(uj, g=g_new, kappa=self.kappa, q=q)
+            uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy)
 
             # Right hand side of Jacobi iteration - fixed for inner iterations
             b = L * uj + dt * f_new  + self.cmm(self.theta(uuold) - self.theta(uuj))
 
             for i in range(ninner):
-                uui = boundary_function(ui, g=g_new, kappa=self.kappa, q=q) # apply dirichlet boundary condition
+                uui = boundary_function(ui, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy) # apply dirichlet boundary condition
 
                 div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui + self.zz))  \
                                             + self.kappa(uj) * self.diff(uui + self.zz) \
@@ -573,17 +606,13 @@ class Richards_PC2(Richards):
 
         uj = uold.clone()
 
-        #b = dt * f_new  + self.cmm(self.theta(uuold) - self.theta(uuj))
-        # Right hand side of Jacobi iteration - fixed for inner iterations
-        #b = dt * f_new + uold # this is for the heat equation
-        #bhalf = dt * 0.5 *(f_new + f_old) + uold
-
         for i in range(ninner):
             uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy)
-            b = L * uj + dt * f_new  + self.cmm(self.theta(uuold) - self.theta(uuj))
+            b = L * uj + dt * f_new  + self.theta(uold) - self.theta(uj)
             upred = self.V_cycle_MG(uj, b, g, t, dt, boundary_function, iteration=iteration, nlevel=nlevel, phase="pred", L=L)
             uupred = boundary_function(upred, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy)
-            b_half = L * upred + 0.5 * dt * (f_new + f_old) + self.cmm(self.theta(uuold) - self.theta(uupred))
+
+            b_half = L * upred + 0.5 * dt * (f_new + f_old) + self.theta(uold) - self.theta(upred)
             ucorr = self.V_cycle_MG(upred, b_half, g, t, dt, boundary_function, iteration=iteration, nlevel=nlevel, phase="corr", uold=uold, L=L)
 
             assert torch.isinf(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
@@ -594,7 +623,7 @@ class Richards_PC2(Richards):
                 break
 
             if i == ninner - 1:
-                print(f"Error is {torch.sqrt(torch.mean((upred - ucorr)**2))}")
+                print(f"Error is {torch.sqrt(torch.mean((upred - uj)**2))}")
                 break
 
             uj = ucorr.clone()
