@@ -11,15 +11,15 @@ import time
 nx_array = torch.tensor([7, 15, 31, 63]) # number of elements in each edge of mesh
 
 # THIS NOW NEEDS TO BE DIVISIBLE BY 4!!!
-dt_array = 10 * torch.tensor([0.01, 0.005, 0.002, 0.001]) # timestep array
+dt_array = torch.tensor([0.01, 0.005, 0.002, 0.001]) # timestep array
 length = 1                           # domain is [0, 1] x [0, 1]
-T = 10 * 0.01                             # total length of time
+T = 0.01                             # total length of time
 PC = True                            # predictor corrector method or L method
 nlevels = [3, 4, 5, 6]
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
-device = torch.device("cuda:0" if is_gpu else "cpu")
+device = torch.device("cuda:0")
 torch.set_default_device(device)
 torch.set_default_dtype(torch.float64)
 print(f"Running on device {device}")
