@@ -11,9 +11,9 @@ import time
 nx_array = torch.tensor([7, 15, 31, 63]) # number of elements in each edge of mesh
 
 # THIS NOW NEEDS TO BE DIVISIBLE BY 4!!!
-dt_array = torch.tensor([0.01, 0.005, 0.002, 0.001]) # timestep array
+dt_array = 10 * torch.tensor([0.01, 0.005, 0.002, 0.001]) # timestep array
 length = 1                           # domain is [0, 1] x [0, 1]
-T = 0.01                             # total length of time
+T = 10 * 0.01                             # total length of time
 PC = True                            # predictor corrector method or L method
 nlevels = [3, 4, 5, 6]
 
