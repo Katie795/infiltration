@@ -43,7 +43,7 @@ with torch.no_grad():
             uold = u_init.clone()
 
             if PC == True:
-                model = Richards_PC2(zz, dx, dx, theta_hm, kappa_hm, xx, yy)
+                model = Richards_PC(zz, dx, dx, theta_hm, kappa_hm, xx, yy)
             else:
                 model = Richards_L(zz,  dx, dx, theta_hm, kappa_hm, xx, yy)
 

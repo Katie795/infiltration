@@ -10,7 +10,7 @@ km2560@bath.ac.uk
 import numpy as np 
 import time 
 import torch
-import tomllib
+import tomli as tomllib
 import argparse
 from AI4Flood.richards_solver import *
 from AI4Flood.richards_coefficients import theta_malago, kappa_malago
@@ -77,7 +77,7 @@ print(f'Final time:  {T.item()} seconds = {T.item() / 3600} hours')
 
 # assumption of some equilibrium
 u_old = - torch.unsqueeze(torch.unsqueeze(y, 0), 0)
-model = Richards_PC(yy, dx, dy, theta_malago, kappa_malago, drain_l=drain_l, drain_r=drain_r)
+model = Richards_L(yy, dx, dy, theta_malago, kappa_malago, xx, yy, drain_l=drain_l, drain_r=drain_r)
 
 t = 0
 i = 0
@@ -86,7 +86,8 @@ np.savetxt(f"../results/u_0.csv", u_old.cpu().detach().numpy()[0,0,:,:], delimit
 
 with torch.no_grad():
     while t < T:
-        u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=2)
+        u_new = model(u_old, t, dt, ninner=50, boundary_type="Neumann", L=2) 
+        #u_new = model(u_old, t, dt, ninner=50, boundary_type="Neumann", L=2, iteration=10, nlevel=3)  # TODO: implement Neumann bcs in PC scheme!
         t += dt
         i += 1
         # save figure every n_out timesteps

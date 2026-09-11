@@ -37,6 +37,9 @@ class Richards(nn.Module):
         self.cmm.bias.data = bias
         self.A.bias.data = bias
 
+    def find_closest_index(self, value, dx):
+        return torch.round(value / dx).int()
+
     def restrict_grid(self, xx, yy):
 
         x = xx[1:-1, 1:-1] # eliminating padding
@@ -139,7 +142,7 @@ class Richards(nn.Module):
 
         return u_new
 
-    def apply_neumann_bcs(self, u, g=1, kappa=1, q=2):
+    def apply_neumann_bcs(self, u, g=1, kappa=1, q=2, t=0, xx=0, yy=0):
         """Applies a boundary condition g to a function u. Used when the soil is not saturated
         
         :args u: original function over nx x ny grid to which the boundary condition is applied
@@ -506,76 +509,8 @@ class Richards_L(Richards):
 
         return uiplus    
 
+
 class Richards_PC(Richards):
-    def __init__(self, zz, dx, dy, theta, kappa, xx, yy, drain_l=0, drain_r=0):
-         super().__init__(zz, dx, dy, theta, kappa, xx, yy, drain_l=0, drain_r=0)
-
-    def forward(self, uold, t, dt, boundary_type, g_old=0, g_new=0, ninner=1, q=1, f=0, L=1):
-        """Here we use a Jacobi iteration with an L method to solve richard's equation."""
- 
-        if boundary_type == "Dirichlet":
-            boundary_function = self.apply_dirichlet_bcs
-        elif boundary_type == "Mixed":
-            boundary_function = self.apply_mixed_bcs
-        elif boundary_type == "Neumann":
-            boundary_function = self.apply_neumann_bcs
-        elif boundary_type == "Conditional":
-                    boundary_function = self.apply_conditional_bcs
-        else:
-            raise Exception("Need to specify Dirichlet, Mixed, Neumann or Conditional boundary conditions")
-            
-        uuold = boundary_function(uold, g=g_old, kappa=self.kappa, q=q)
-
-        if f == 0:
-            f_new = torch.tensor(0)
-        else:
-            f_new = f(self.xx[1:-1, 1:-1], self.yy[1:-1, 1:-1], t + dt)
-
-        ujplus = torch.zeros_like(uold)
-        uj = uold.clone()
-
-        for i in range(ninner):
-            # predictor step
-            uuj = boundary_function(uj, g=g_new, kappa=self.kappa, q=q)
-            # this is like a forward euler scheme
-            div_k_grad_uj = 0.5 * (self.diff(self.kappa(uuj) * (uuj + self.zz)) \
-                                     + self.kappa(uj) * self.diff(uuj + self.zz) \
-                                          - (uj + self.z)* self.diff(self.kappa(uuj)))
-
-            RHS = self.cmm(self.theta(uuold) - self.theta(uuj)) / dt + div_k_grad_uj + f_new
-            ujstar =  uj + 1 / L *  RHS
-            
-            uujstar = boundary_function(ujstar, g=g_new, kappa=self.kappa, q=q)
-
-            # corrector step
-            ujpred = 0.5 * (uold + ujstar)
-            uujpred = boundary_function(ujpred, g=g_new, kappa=self.kappa, q=q)
-
-            div_k_grad_uj_pred = 0.5 * (self.diff(self.kappa(uujpred) * (uujpred + self.zz)) \
-                                          + self.kappa(ujpred) * self.diff(uujpred + self.zz) \
-                                            - (ujpred + self.z) * self.diff(self.kappa(uujpred )))
-
-            RHS_pred = self.cmm(self.theta(uuold) - self.theta(uujstar))/ dt + div_k_grad_uj_pred + f_new
-            ujplus = (uj + 1 / L * RHS_pred).clone()
-
-            assert torch.isinf(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
-            assert torch.isnan(torch.sqrt(torch.mean((ujplus - uj)**2))) == False
-            
-            if torch.sqrt(torch.mean((ujplus - uj)**2)) <= 1e-12:
-                print(f"Iterations converged after {i+1} iterations")
-                break
-
-            if i == ninner - 1:
-                print(f"PC scheme has not converged, error is {torch.sqrt(torch.mean((ujplus - uj)**2))}")
-                break
-
-            uj = ujplus.clone()
-
-        return ujplus
-
-
-
-class Richards_PC2(Richards):
     def __init__(self, zz, dx, dy, theta, kappa, xx, yy, drain_l=0, drain_r=0):
         super().__init__(zz, dx, dy, theta, kappa, xx, yy, drain_l=0, drain_r=0)
 
