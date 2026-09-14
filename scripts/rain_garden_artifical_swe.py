@@ -3,6 +3,7 @@ Infiltration of Malago Road rain garden using Richard's equation
 Katie MacKenzie 
 km2560@bath.ac.uk
 '''
+
 # # # ######################################## # # #
 # # # #####   Import libraries and data  ##### # # #
 # # # ######################################## # # #
@@ -10,7 +11,7 @@ km2560@bath.ac.uk
 import numpy as np 
 import time 
 import torch
-import tomllib
+import tomli as tomllib
 import argparse
 from AI4Flood.richards_solver import *
 from AI4Flood.richards_coefficients import theta_malago, kappa_malago
@@ -31,42 +32,37 @@ args, _ = parser.parse_known_args()
 with open(args.config, "rb") as f:
     config = tomllib.load(f)
 
-rainfall_data = np.genfromtxt("../data/Clifton_rain_modifed_for_rainfall_event.csv", delimiter=',')[1:, 0]
-time_data = 60 * 15 * np.array(range(len(rainfall_data)))
+rainfall_data = np.genfromtxt(config["IO"]["rainfall_data"], delimiter=',')[1:, 0]
+time_data = 60 * 15 * np.array(range(len(rainfall_data))) # TODO need to make this variable with any input data
 
-# Check if GPU is available 
-device = torch.device(config["parameters"]["device"])
+device = torch.device(config["processor"]["device"])
 print(f"Running on device {device}")
-clear_output_folder(config["parameters"]["results_folder"])
+clear_output_folder("../results")
 torch.set_default_dtype(torch.float64)
 torch.set_default_device(device)
 
 # # # ##################################################### # # #
 # # # #####   Numerical parameters from config file   ##### # # #
 # # # ##################################################### # # #
-dx       = torch.tensor([config["parameters"]["dx"]]) 
-dy       = torch.tensor([config["parameters"]["dy"]])
-nx       = torch.tensor([config["parameters"]["nx"]])
-ny       = torch.tensor([config["parameters"]["ny"]])
-length   = torch.tensor([config["parameters"]["length"]]) 
-depth    = torch.tensor([config["parameters"]["depth"]]) 
-drain_l  = torch.tensor([config["parameters"]["drain_l"]])
-drain_r  = torch.tensor([config["parameters"]["drain_r"]])
-dt       = torch.tensor([config["parameters"]["dt"]])
-T        = torch.tensor([config["parameters"]["T"]])
-save_fig = torch.tensor([config["parameters"]["save_fig"]])
-n_out    = torch.tensor([config["parameters"]["n_out"]])
+
+length   = torch.tensor([config["geometry"]["length"]]) 
+depth    = torch.tensor([config["geometry"]["depth"]]) 
+drain_l  = torch.tensor([config["geometry"]["drain_l"]])
+drain_r  = torch.tensor([config["geometry"]["drain_r"]])
+dx       = torch.tensor([config["mesh"]["dx"]]) 
+dy       = torch.tensor([config["mesh"]["dy"]])
+nx       = torch.tensor([config["mesh"]["nx"]])
+ny       = torch.tensor([config["mesh"]["ny"]])
+dt       = torch.tensor([config["time"]["dt"]])
+T        = torch.tensor([config["time"]["T"]])
+save_fig = torch.tensor([config["IO"]["save_fig"]])
+n_out    = torch.tensor([config["IO"]["n_out"]])
 
 x, y, xx, yy = generate_csv_files(nx, ny, length, depth, name="infiltration")
 
-
-# # # ################################### # # #
-# # # ######   Create field (tensor)  ### # # #
-# # # ################################### # # #
 print('============== Numerical parameters ===============')
 print(f'Time step: {dt.item()} seconds')
 print(f'Final time:  {T.item()} seconds = {T.item() / 3600} hours')
-
 
 # # # ################################### # # #
 # # # #######   Initialisation ########## # # #
@@ -74,14 +70,12 @@ print(f'Final time:  {T.item()} seconds = {T.item() / 3600} hours')
 
 # assumption of some equilibrium
 u_old = - torch.unsqueeze(torch.unsqueeze(y, 0), 0)
-model = Richards_L(yy, dx, dy, theta_malago, kappa_malago, drain_l=drain_l, drain_r=drain_r)
+model = Richards_L(yy, dx, dy, theta_malago, kappa_malago, xx, yy, drain_l=drain_l, drain_r=drain_r)
 
 t = 0
 i = 0
 start = time.time()
 np.savetxt(f"../results/u_0.csv", u_old.cpu().detach().numpy()[0,0,:,:], delimiter=",")
-
-
 
 with torch.no_grad():
     while t < T:

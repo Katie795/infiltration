@@ -39,28 +39,29 @@ def rainfall_flux(t, dt):
     rainfall = np.interp(t, time_data, rainfall_data)
     return np.asarray(dt.cpu()) * rainfall / (1000 * 15 * 60) # converting mm/15mins flux to m/second / timestep
 
-# Check if GPU is available 
-device = torch.device(config["parameters"]["device"])
+
+device = torch.device(config["processor"]["device"])
 print(f"Running on device {device}")
-clear_output_folder(config["parameters"]["results_folder"])
+clear_output_folder("../results")
 torch.set_default_dtype(torch.float64)
 torch.set_default_device(device)
 
 # # # ##################################################### # # #
 # # # #####   Numerical parameters from config file   ##### # # #
 # # # ##################################################### # # #
-dx       = torch.tensor([config["parameters"]["dx"]]) 
-dy       = torch.tensor([config["parameters"]["dy"]])
-nx       = torch.tensor([config["parameters"]["nx"]])
-ny       = torch.tensor([config["parameters"]["ny"]])
-length   = torch.tensor([config["parameters"]["length"]]) 
-depth    = torch.tensor([config["parameters"]["depth"]]) 
-drain_l  = torch.tensor([config["parameters"]["drain_l"]])
-drain_r  = torch.tensor([config["parameters"]["drain_r"]])
-dt       = torch.tensor([config["parameters"]["dt"]])
-T        = torch.tensor([config["parameters"]["T"]])
-save_fig = torch.tensor([config["parameters"]["save_fig"]])
-n_out    = torch.tensor([config["parameters"]["n_out"]])
+dx       = torch.tensor([config["mesh"]["dx"]]) 
+dy       = torch.tensor([config["mesh"]["dy"]])
+nx       = torch.tensor([config["mesh"]["nx"]])
+ny       = torch.tensor([config["mesh"]["ny"]])
+length   = torch.tensor([config["geometry"]["length"]]) 
+depth    = torch.tensor([config["geometry"]["depth"]]) 
+drain_l  = torch.tensor([config["geometry"]["drain_l"]])
+drain_r  = torch.tensor([config["geometry"]["drain_r"]])
+dt       = torch.tensor([config["time"]["dt"]])
+T        = torch.tensor([config["time"]["T"]])
+save_fig = torch.tensor([config["IO"]["save_fig"]])
+n_out    = torch.tensor([config["IO"]["n_out"]])
+
 
 x, y, xx, yy = generate_csv_files(nx, ny, length, depth, name="infiltration")
 
