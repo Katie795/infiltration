@@ -14,12 +14,14 @@ start = time.time()
 
 #TODO: THIS TEST INVOLVES REGENERATING MESHES!!! CAN WE RUN IT WITHOUT REGENERATING THE MESHES?? 
 
-for nt in nt_array:
-    print(f"nt is {nt}")
+for nx in nx_array:
+    print(f"nx is {nx}")
     L2_error_dx = []
-    for nx in nx_array:
-        print(f"nx is {nx}")
-        unew, error = Richards_FEM(nx, nt, T)
+    mesh = UnitSquareMesh(nx, nx, quadrilateral=True) # unit square mesh
+    V = FunctionSpace(mesh, "CG", 1) #TODO is this the right function space??
+    for nt in nt_array:
+        print(f"nt is {nt}")
+        unew, error = Richards_FEM(nx, nt, T, mesh, V)
         L2_error_dx.append(error)
     L2_error.append(L2_error_dx)
 

@@ -2,80 +2,69 @@ import numpy as np
 from firedrake import *
 
 def u_exact_FEM(x, y, t, V):
-    s = x - y - t
+    s = Function(V)
+    s.interpolate(x - y)
     left = -0.5 * s
+    u_exact = project(left, V)
     right = -tan((exp(s) - 1) / (exp(s) + 1)) # this is written using UFL
-    ans = conditional(s < 0, left, right)
+    u_exact.assign(project(conditional(le(0, s), right, left), V))
 
-    print(type(ans))
-    return 
+    return u_exact
 
 def kappa_FEM(u, V):
-    base = 2.0
+    base = Constant(2.0)
     kappa = project(base, V)
     kappa_left = 2.0 / (1.0 + u **2 ) # TODO: some confusion as to what this is
-    ans = conditional(u < 0, kappa_left, base)
-    kappa.assign(project(conditional(le(u, 0), kappa_left, base)))
-
+    kappa.assign(project(conditional(le(u, 0), kappa_left, base), V))
     return kappa
 
 def theta_FEM(u, V):
-    base = 0.5 * pi**2
-    atan_term = 2 * arctan(u)**2
+    base = Constant(0.5 * pi**2)
+    theta = project(base, V)
+    atan_term = 2 * atan(u)**2
+    theta.assign(project(conditional(le(u, 0), atan_term, base), V))
+    return theta
 
-    ans = conditional(u < 0, base - atan_term, base)
-
-    return ans
-
-def Richards_FEM(nx, nt, T):
-
-    mesh = UnitSquareMesh(nx, nx)
-    V = VectorFunctionSpace(mesh, "CG", 1)
-    u = Function(V, name="solution_next")
+def Richards_FEM(nx, nt, T, mesh, V, L=2, ninner=10, nouter=10):
     uj = Function(V)
     ui = Function(V)
-    v = TestFunction(V)
-    x = SpatialCoordinate(mesh)
-
-    u_init = project(as_vector(u_exact_FEM(x[0], x[1], 0)))
-    uj.assign(u_init)
+    uold = Function(V)
+    x, y = SpatialCoordinate(mesh)
+    u_init = u_exact_FEM(x, y, 0, V)
+    uj.interpolate(u_init)
+    uold.interpolate(u_init)
     dt = T / nt
-    bc_function = as_vector(u_exact_FEM(x[0], x[1], 0))
-    bc0 = DirichletBC(V, bc_function)
-
-    D = torch.tensor([self.diag * dt * torch.max(self.kappa(uold)) + L])
-
     t = 0
     while t <= T:
         for j in range(nouter):
+            u = TrialFunction(V)
+            v = TestFunction(V)
             # Right hand side of Jacobi iteration - fixed for inner iterations
-            b = inner(L * uj, v) * dx +  inner(theta(uuold) - theta(uuj), v) * dx
+            f = Function(V)
+            f.interpolate((1+8*pi*pi)*cos(x*pi*2)*cos(y*pi*2))
+            #b = inner(L * uj, v) * dx #+  inner(theta_FEM(uold, V) - theta_FEM(uj, V), v) * dx
+            b = inner(f, v) * dx
+  
+            #bc_function = u_exact_FEM(x, y, t, V)
+            #bc = DirichletBC(V, bc_function, 1)
+            
+            #A = inner(L * ui, v) * dx  + dt * inner( kappa_FEM(uj, V) * grad(ui), grad(v)) * dx
+            A = (inner(u, v)  + inner( grad(u), grad(v)) )* dx
 
-            for i in range(ninner):
-                bc_function = as_vector(u_exact_FEM(x[0], x[1], t))
-                bc = DirichletBC(V, bc_function)
-                
-                A = inner(L * ui, v) * dx  + dt * inner( kappa(uj) * grad(ui), grad(v)) * dx
-                solve(a == L, ui, bcs=[bc], solver_parameters={'ksp_type': 'cg', 'pc_type': 'none'}) 
-
-                if sqrt(assemble(dot(u - f, u - f) * dx)) <= 1e-12:
-                    print(f"Inner iterations converged after {i+1} iterations")
-                    break
-
-                if i == ninner - 1:
-                    break
-
-
-            if sqrt(assemble(dot(u - f, u - f) * dx)) <= 1e-12:
+            u = Function(V)
+            solve(A == b, u, solver_parameters={'ksp_type': 'cg', 'pc_type': 'none'}) # inner loop is done in here?
+            
+            if errornorm(u, u_exact_FEM(x, y, t, V)) <= 1e-12:
                 print(f"Outer iterations converged after {j+1} iterations")
                 break
 
             if j == nouter - 1:
-                print(f"Outer iteration has not converged, error is {sqrt(assemble(dot(u - f, u - f) * dx))}")
+                print(f"Outer iteration has not converged, error is {errornorm(u, u_exact_FEM(x, y, t, V))}")
                 break
 
-            uj.assign(ui) 
-        t += dt     
-    error = sqrt(assemble(dot(u_new - u_exact_FEM(x, y, t), u_new - u_exact_FEM(x, y, t))))
+            uj.assign(u) 
+        t += dt 
+        uold.assign(u)    
+    error = errornorm(u, u_exact_FEM(x, y, t, V))
     
-    return ui, error
+    return u, error
