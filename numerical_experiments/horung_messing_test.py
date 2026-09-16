@@ -19,7 +19,7 @@ nlevels = [3, 4, 5, 6]
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
-device = torch.device("cuda:0")
+device = torch.device("cpu")
 torch.set_default_device(device)
 torch.set_default_dtype(torch.float64)
 print(f"Running on device {device}")
@@ -64,7 +64,7 @@ with torch.no_grad():
 
             error = u_new - u_exact_hm(x, y, t) # spatial error
 
-            #plot_tensor(xx.cpu(), yy.cpu(), u_exact_hm(xx,yy, t)[0,0,:,:].cpu().numpy(), "exact_solution")
+            plot_tensor(xx.cpu(), yy.cpu(), u_exact_hm(xx,yy, 0)[0,0,:,:].cpu().numpy(), "init_exact_solution")
             #plot_tensor(x.cpu(), y.cpu(), u_new[0,0,:,:].cpu().numpy(), "model_solution")
             plot_tensor(x.cpu(), y.cpu(), torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
 
