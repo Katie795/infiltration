@@ -7,15 +7,15 @@ from AI4Flood.richards_coefficients import u_exact_hm, kappa_hm, theta_hm
 from AI4Flood.misc_functions import *
 import time 
 
-### Variables that can be changed ###
-nx_array = torch.tensor([7, 15, 31, 63]) # number of elements in each edge of mesh
+### spatial and temporal parameters ###
+T = 0.1                                      # total length of time
+nt_array = np.array([1, 2, 5, 10])           # number of timesteps
+dt_array = np.array([0.1, 0.05, 0.02, 0.01]) # timestep array
+nx_array = np.array([7, 15, 31, 63])         # number of elements in each edge of mesh
+length = 5                                  # the length of the side of a square domain
 
-# THIS NOW NEEDS TO BE DIVISIBLE BY 4!!!
-dt_array = torch.tensor([0.01, 0.005, 0.002, 0.001]) # timestep array
-length = 1                           # domain is [0, 1] x [0, 1]
-T = 0.01                             # total length of time
-PC = True                            # predictor corrector method or L method
-nlevels = [3, 4, 5, 6]
+PC = False               # predictor corrector method or L method
+nlevels = [3, 4, 5, 6]  # levels of refinement
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
@@ -24,86 +24,70 @@ torch.set_default_device(device)
 torch.set_default_dtype(torch.float64)
 print(f"Running on device {device}")
 
-### iterates, lists and functions ###
-L2_error = []
-start = time.time()
+L2_error = []       # stores the error
+start = time.time() # start timer
+
 with torch.no_grad():
-    for dt in dt_array:
-        print(f"dt is {dt}")
-        L2_error_dx = []
+    for nx in nx_array:
+        print(f"Evaluating on mesh {nx}")
+        L2_error_nx = []
+        dx = length / nx
+        x, y, xx, yy = generate_csv_files(nx, nx, length, length, name="horung_messsing")
+        zz = torch.zeros_like(yy)
+
+        u_init = u_exact_hm(x,y,0) # initial condition 
+        uold = u_init.clone()
+
+        if PC == True:
+            model = Richards_PC(zz, dx, dx, theta_hm, kappa_hm, xx, yy)
+        else:
+            model = Richards_L(zz, dx, dx, theta_hm, kappa_hm, xx, yy)
+
         i = 0
-        for nx in nx_array:
-            print(f"nx is {nx}")
-            t=0
-            dx = length / nx
-            x, y, xx, yy = generate_csv_files(nx, nx, length, length, name="horung_messsing")
-            zz = torch.zeros_like(yy)
+        for dt in dt_array:
+            t = 0
+            nt = nt_array[i]
+            print(f"dt is {dt}")
+            print(f"nt is {nt}")
 
-            u_init = u_exact_hm(x,y,0) # initial condition 
-            uold = u_init.clone()
-
-            if PC == True:
-                model = Richards_PC(zz, dx, dx, theta_hm, kappa_hm, xx, yy)
-            else:
-                model = Richards_L(zz,  dx, dx, theta_hm, kappa_hm, xx, yy)
-
-            while t < T:
+            for n in range(nt):
+                t = (n + 1) * dt
                 if PC == True:
                     u_new = model(uold, t, dt, ninner=50, boundary_type="Dirichlet", L=2, g=u_exact_hm, iteration=10, nlevel=3)
                 else:
                     u_new = model(uold, t, dt, L=2, ninner=200, nouter=1000, boundary_type="Dirichlet", g=u_exact_hm)
                 uold = u_new.clone()
-                t += dt
-
-
-                if t >= T:
-                    print("t has reached the final time!")
-                    break
-                
-
 
             error = u_new - u_exact_hm(x, y, t) # spatial error
 
-            plot_tensor(xx.cpu(), yy.cpu(), u_exact_hm(xx,yy, 0)[0,0,:,:].cpu().numpy(), "init_exact_solution")
-            #plot_tensor(x.cpu(), y.cpu(), u_new[0,0,:,:].cpu().numpy(), "model_solution")
-            plot_tensor(x.cpu(), y.cpu(), torch.abs(error)[0,0,:,:].cpu().numpy(), "model_exact_difference")
-
-            L2_error_dx.append(torch.sqrt(torch.mean((u_new - u_exact_hm(x, y, t))**2)).cpu().numpy())
+            L2_error_nx.append(torch.sqrt(torch.mean(error**2)).cpu().numpy())
             i += 1
 
-        L2_error.append(L2_error_dx)
+        L2_error.append(L2_error_nx)
 
-#plot_tensor(xx.cpu(), yy.cpu(), u_exact_hm(xx, yy, T)[0,0,:,:].cpu().numpy() - u_exact_hm(xx, yy, t)[0,0,:,:].cpu().numpy(), "Exact_solution_error, T - t")
-end = time.time()
+end = time.time() # end timer
 print(f"Time taken to run simulation: {end - start}")
-dx = 1 / (nx_array.cpu().numpy())
-L2_error = np.array(L2_error)
+
+dx = length / nx_array
 L2_error = np.array(L2_error)
 print(f"L2 error for dt = {dt_array[0]} is:")
-print(L2_error[0])
+print(L2_error[:, 0])
 print(f"L2 error for dt = {dt_array[1]} is:")
-print(L2_error[1])
+print(L2_error[:, 1])
 print(f"L2 error for dt = {dt_array[2]} is:")
-print(L2_error[2])
+print(L2_error[:, 2])
 print(f"L2 error for dt = {dt_array[3]} is:")
-print(L2_error[3])
+print(L2_error[:, 3])
 
-### convergence plot ###
-fig, ax1 = plt.subplots(1,1, figsize=(6,6))
+### convergence plot ###s
+fig, ax1 = plt.subplots(1,1)
 marker = ["o", "x", "s", "^", ">"]
 for i in range(len(L2_error)):
-    ax1.loglog(dx, L2_error[i], linestyle="dashed", marker=marker[i], label=rf"$\Delta t = {dt_array[i]:.6f}$")
-ax1.plot(dx, 0.005 * dx ** 2, color="black", linestyle="dotted", label=r"Slope $= -2$" )
+    ax1.loglog(dx, L2_error[:, i], linestyle="dashed", marker=marker[i], label=rf"$\Delta t = {dt_array[i]:.4f}$", linewidth=2)
+ax1.plot(dx, 0.005 * dx ** 2, color="black", linestyle="dotted", label=r"$y= C(\Delta x)^2$")
 ax1.set_xlabel(r"$\Delta x$", fontsize=12)
 ax1.set_ylabel(r"$L^2$ error", fontsize=12)
 ax1.legend(fontsize=12)
-
-#for j in range(len(L2_error[0])):
-#    ax2.loglog(dt_array.cpu().numpy(), L2_error[:,j], linestyle="dashed", marker=marker[j], label=rf"$\Delta x = {dx[j]:.6f}$")
-#ax2.plot(dt, 0.001 * dt, color="black", linestyle="dotted", label=r"Slope $= -1$" )
-#ax2.set_xlabel(r"$\tau$", fontsize=12)
-#ax2.set_ylabel(r"$L^2$ error", fontsize=12)
-#ax2.legend(fontsize=12)
 plt.tight_layout()
 if PC == True:
     plt.savefig(f"../plots/horung_messing_PC_T={T}.png")
