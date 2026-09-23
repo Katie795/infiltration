@@ -50,7 +50,7 @@ def Richards_FEM(dt, nt, mesh, V, L=2, ninner=10, nouter=10):
             #                                               'ksp_max_it': ninner,
             #                                               'ksp_rtol': 1e-5}
 
-            if errornorm(u_new, uj) <= 1e-6:
+            if errornorm(u_new, uj) <= 1e-5:
                 print(f"Outer iterations converged after {j+1} iterations")
                 uj.assign(u_new) 
                 break
