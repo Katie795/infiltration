@@ -489,7 +489,7 @@ class Richards_L(Richards):
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 
                 if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-6:
-                    print(f"Inner iterations converged after {i+1} iterations")
+                    #print(f"Inner iterations converged after {i+1} iterations")
                     break
 
                 if i == ninner - 1:
