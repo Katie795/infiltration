@@ -423,14 +423,19 @@ class Richards(nn.Module):
                 a = self.prol(a) 
 
             ui = ui + a
-            uui = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy)
+            uuinew = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy)
+
+            if torch.sqrt(torch.mean((uuinew - uui)**2)) <= 1e-6:
+                break
             
             if phase == "pred":
-                for _ in range(smoothing_iterations):
-                    ui = ui + 1 / D_s[0] * (b - self.A_L(uui, Kk_s[0], dt, dx=dx_s[0], L=L)) 
+                #for _ in range(smoothing_iterations):
+                ui = ui + 1 / D_s[0] * (b - self.A_L(uuinew, Kk_s[0], dt, dx=dx_s[0], L=L)) 
+        
             else:
-                for _ in range(smoothing_iterations):
-                    ui = ui + 1 / D_s[0] * (b - self.A_L_corr(uui, Kk_s[0], uuold, dt, dx=dx_s[0], L=L)) 
+                #for _ in range(smoothing_iterations):
+                ui = ui + 1 / D_s[0] * (b - self.A_L_corr(uuinew, Kk_s[0], uuold, dt, dx=dx_s[0], L=L)) 
+  
 
         return ui
 
@@ -552,13 +557,15 @@ class Richards_PC(Richards):
 
             assert torch.isinf(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
             assert torch.isnan(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
+
+            print(f"Residual is {torch.sqrt(torch.mean((upred - ucorr)**2))}")
             
-            if torch.sqrt(torch.mean((upred - ucorr)**2)) <= 1e-5:
+            if torch.sqrt(torch.mean((uj - ucorr)**2)) <= 1e-5:
                 print(f"Iterations converged after {i+1} iterations")
                 break
 
             if i == PC_iterations - 1:
-                print(f"Error is {torch.sqrt(torch.mean((upred - uj)**2))}")
+                print(f"Error is {torch.sqrt(torch.mean((ucorr - uj)**2))}")
                 break
 
             uj = ucorr.clone()

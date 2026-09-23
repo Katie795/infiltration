@@ -21,7 +21,7 @@ nlevels = [3, 4, 5, 6]  # levels of refinement
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
-device = torch.device("cuda:0")
+device = torch.device("cpu")
 torch.set_default_device(device)
 torch.set_default_dtype(torch.float64)
 print(f"Running on device {device}")
@@ -57,7 +57,7 @@ with torch.no_grad():
             for n in range(nt):
                 t = (n + 1) * dt
                 if PC == True:
-                    u_new = model(uold, t, dt, boundary_type="Dirichlet", L=2, g=u_exact_hm, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, nlevel=3)
+                    u_new = model(uold, t, dt, boundary_type="Dirichlet", L=2, g=u_exact_hm, smoothing_iterations=1, MG_iterations=10, PC_iterations=10, nlevel=3)
                 else:
                     u_new = model(uold, t, dt, L=2, ninner=100000, nouter=1000, boundary_type="Dirichlet", g=u_exact_hm)
                 uold = u_new.clone()
