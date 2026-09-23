@@ -316,7 +316,7 @@ class Richards(nn.Module):
         # This is not how seeoage boundary conditions are implemented!!
         return u_new
 
-    def V_cycle_MG(self, uj, b, g, t, dt, boundary_function, iteration=1, nlevel=1, phase="pred", uold=0, L=1):
+    def V_cycle_MG(self, uj, b, g, t, dt, boundary_function, smoothing_iterations=3, MG_iterations=1, nlevel=1, phase="pred", uold=0, L=1):
         xx = self.xx
         yy = self.yy
         dx = xx[0, 1] - xx[0, 0]
@@ -378,18 +378,18 @@ class Richards(nn.Module):
             #zz = self.zz
             #z_s.append(zz) # TODO: this needs fixed as well 
         
-        for MG in range(iteration):
+        for MG in range(MG_iterations):
             uui = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy) # apply dirichlet boundary condition
             uuj = uu_s[0] # apply dirichlet boundary condition
 
             if phase == "pred":
-                for j in range(3): # Jacobi relaxation
+                for j in range(smoothing_iterations): # Jacobi relaxation
                     r = b - self.A_L(uui, Kk_s[0], dt, dx=dx_s[0], L=L)
                     ui = ui + 0.5 * r / D_s[0]
                     uui = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy) # apply dirichlet boundary condition
 
             else:
-                for _ in range(3): # Jacobi relaxation
+                for _ in range(smoothing_iterations): # Jacobi relaxation
                     r = b - self.A_L_corr(uui, Kk_s[0], uuold, dt, dx=dx_s[0], L=L)
                     ui = ui + 0.5 * r/ D_s[0]
                     uui = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy) # apply dirichlet boundary condition
@@ -412,11 +412,11 @@ class Richards(nn.Module):
                     a = r_s[i] / D_s[i]
                 else:   
                     if phase == "pred":
-                        for _ in range(3):
+                        for _ in range(smoothing_iterations):
                             a += (r_s[i] - self.A_L(aa, Kk_s[i], dt, dx=dx_s[i], L=L)) / D_s[i]
                             aa = self.apply_dirichlet_bcs(a, g=0, t=tnew, xx=x_s[i], yy=y_s[i])
                     elif phase == "corr":
-                        for _ in range(3):
+                        for _ in range(smoothing_iterations):
                             a += (r_s[i] - self.A_L_corr_res(aa, Kk_s[i], dt, dx=dx_s[i], L=L)) / D_s[i]
                             aa = self.apply_dirichlet_bcs(a, g=0, t=tnew, xx=x_s[i], yy=y_s[i])
             
@@ -426,9 +426,11 @@ class Richards(nn.Module):
             uui = boundary_function(ui, g=g, kappa=self.kappa, t=tnew, xx=self.xx, yy=self.yy)
             
             if phase == "pred":
-                ui = ui + 1 / D_s[0] * (b - self.A_L(uui, Kk_s[0], dt, dx=dx_s[0], L=L)) 
+                for _ in range(smoothing_iterations):
+                    ui = ui + 1 / D_s[0] * (b - self.A_L(uui, Kk_s[0], dt, dx=dx_s[0], L=L)) 
             else:
-                ui = ui + 1 / D_s[0] * (b - self.A_L_corr(uui, Kk_s[0], uuold, dt, dx=dx_s[0], L=L)) 
+                for _ in range(smoothing_iterations):
+                    ui = ui + 1 / D_s[0] * (b - self.A_L_corr(uui, Kk_s[0], uuold, dt, dx=dx_s[0], L=L)) 
 
         return ui
 
@@ -451,8 +453,6 @@ class Richards_L(Richards):
         else:
             raise Exception("Need to specify Dirichlet, Mixed or Neumann boundary conditions")
 
-        #g_old = g(self.xx, self.yy, t)
-        #g_new = g(self.xx, self.yy, t + dt)
         tnew = t + dt
 
         uj = uold.clone()
@@ -488,7 +488,7 @@ class Richards_L(Richards):
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 
-                if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-12:
+                if torch.sqrt(torch.mean((uiplus - ui)**2)) <= 1e-6:
                     print(f"Inner iterations converged after {i+1} iterations")
                     break
 
@@ -497,7 +497,7 @@ class Richards_L(Richards):
 
                 ui = uiplus.clone()
 
-            if torch.sqrt(torch.mean((uiplus - uj)**2)) <= 1e-12:
+            if torch.sqrt(torch.mean((uiplus - uj)**2)) <= 1e-5:
                 print(f"Outer iterations converged after {j+1} iterations")
                 break
 
@@ -514,7 +514,7 @@ class Richards_PC(Richards):
     def __init__(self, zz, dx, dy, theta, kappa, xx, yy, drain_l=0, drain_r=0):
         super().__init__(zz, dx, dy, theta, kappa, xx, yy, drain_l=0, drain_r=0)
 
-    def forward(self, uold, t, dt, boundary_type, g=0, L=1, ninner=1, q=1, f=0, iteration=1, nlevel=1):
+    def forward(self, uold, t, dt, boundary_type, g=0, L=1, q=1, f=0, smoothing_iterations=3, MG_iterations=1, PC_iterations=1, nlevel=1):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
  
         if boundary_type == "Dirichlet":
@@ -541,23 +541,23 @@ class Richards_PC(Richards):
 
         uj = uold.clone()
 
-        for i in range(ninner):
-            uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy)
+        for i in range(PC_iterations):
+            #uuj = boundary_function(uj, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy)
             b = L * uj + dt * f_new  + self.theta(uold) - self.theta(uj)
-            upred = self.V_cycle_MG(uj, b, g, t, dt, boundary_function, iteration=iteration, nlevel=nlevel, phase="pred", L=L)
-            uupred = boundary_function(upred, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy)
+            upred = self.V_cycle_MG(uj, b, g, t, dt, boundary_function, smoothing_iterations=smoothing_iterations, MG_iterations=MG_iterations,  nlevel=nlevel, phase="pred", L=L)
+            #uupred = boundary_function(upred, g=g, kappa=self.kappa, q=q, t=tnew, xx=self.xx, yy=self.yy)
 
             b_half = L * upred + 0.5 * dt * (f_new + f_old) + self.theta(uold) - self.theta(upred)
-            ucorr = self.V_cycle_MG(upred, b_half, g, t, dt, boundary_function, iteration=iteration, nlevel=nlevel, phase="corr", uold=uold, L=L)
+            ucorr = self.V_cycle_MG(upred, b_half, g, t, dt, boundary_function, smoothing_iterations=smoothing_iterations, MG_iterations=MG_iterations,  nlevel=nlevel, phase="corr", uold=uold, L=L)
 
             assert torch.isinf(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
             assert torch.isnan(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
             
-            if torch.sqrt(torch.mean((upred - ucorr)**2)) <= 1e-12:
+            if torch.sqrt(torch.mean((upred - ucorr)**2)) <= 1e-5:
                 print(f"Iterations converged after {i+1} iterations")
                 break
 
-            if i == ninner - 1:
+            if i == PC_iterations - 1:
                 print(f"Error is {torch.sqrt(torch.mean((upred - uj)**2))}")
                 break
 

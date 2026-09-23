@@ -44,10 +44,11 @@ def Richards_FEM(dt, nt, mesh, V, L=2, ninner=10, nouter=10):
             bc = DirichletBC(V, bc_function, "on_boundary")
  
             u_new = Function(V)
-            solve(A == b, u_new, bcs=[bc], solver_parameters={'ksp_type': 'richardson',
-                                                           'pc_type': 'jacobi',
-                                                           'ksp_max_it': ninner,
-                                                           'ksp_rtol': 1e-6}) 
+            solve(A == b, u_new, bcs=[bc], solver_parameters={'ksp_rtol': 1e-6}) 
+            #solver_parameters={'ksp_type': 'richardson',
+            #                                               'pc_type': 'jacobi',
+            #                                               'ksp_max_it': ninner,
+            #                                               'ksp_rtol': 1e-5}
 
             if errornorm(u_new, uj) <= 1e-6:
                 print(f"Outer iterations converged after {j+1} iterations")
@@ -58,8 +59,6 @@ def Richards_FEM(dt, nt, mesh, V, L=2, ninner=10, nouter=10):
                 print(f"Outer iteration has not converged, error is {errornorm(u_new, uj)}")
                 uj.assign(u_new) 
                 break
-
-            nonlinear_error = errornorm(u_new, uj)
 
             uj.assign(u_new) 
         uold.assign(u_new)  
