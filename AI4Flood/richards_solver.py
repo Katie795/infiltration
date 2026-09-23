@@ -558,7 +558,7 @@ class Richards_PC(Richards):
             assert torch.isinf(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
             assert torch.isnan(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
 
-            print(f"Residual is {torch.sqrt(torch.mean((upred - ucorr)**2))}")
+            #print(f"Residual is {torch.sqrt(torch.mean((upred - ucorr)**2))}")
             
             if torch.sqrt(torch.mean((uj - ucorr)**2)) <= 1e-5:
                 print(f"Iterations converged after {i+1} iterations")
