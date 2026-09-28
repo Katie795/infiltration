@@ -45,9 +45,9 @@ with torch.no_grad():
         uold = u_init.clone()
 
         if PC == True:
-            model = Richards_PC(zz, dx, dx, theta_hm, kappa_hm, xx, yy, 3)
+            model = Richards_PC(xx, yy, dx, dx, theta_hm, kappa_hm, 3, drain_l=0, drain_r=0)
         else:
-            model = Richards_L(zz, dx, dx, theta_hm, kappa_hm, xx, yy, 0)
+            model = Richards_L(xx, yy, dx, dx, theta_hm, kappa_hm, 0, drain_l=0, drain_r=0)
 
         i = 0
         for dt in dt_array:
@@ -60,10 +60,12 @@ with torch.no_grad():
 
             for n in range(nt):
                 t = (n + 1) * dt
+                g_old = u_exact_hm(xx,yy,t)
+                g_new = u_exact_hm(xx,yy,t + dt)
                 if PC == True:
                     u_new = model(uold, t, dt, boundary_type="Dirichlet", L=2, g=u_exact_hm, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, nlevel=3)
                 else:
-                    u_new = model(uold, t, dt, L=2, ninner=100000, nouter=1000, boundary_type="Dirichlet", g=u_exact_hm)
+                    u_new = model(uold, t, dt, L=2, ninner=100000, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new)
                 uold = u_new.clone()
 
             error = u_new - u_exact_hm(x, y, t) # spatial error

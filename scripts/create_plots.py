@@ -2,11 +2,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import imageio.v2 as imageio
 import os
-import tomllib
+import tomli as tomllib
 import argparse
 import csv
 import datetime
 import torch
+import matplotlib.ticker as ticker
+
 from AI4Flood.misc_functions import *
 from AI4Flood.richards_coefficients import kappa_malago
 parser = argparse.ArgumentParser()
@@ -78,24 +80,24 @@ args, _ = parser.parse_known_args()
 with open(args.config, "rb") as f:
     config = tomllib.load(f)
 
-n_out = torch.tensor([config["parameters"]["n_out"]])
-dt    = torch.tensor([config["parameters"]["dt"]])
-dx    = torch.tensor([config["parameters"]["dx"]]) 
-dy    = torch.tensor([config["parameters"]["dy"]])
-nx    = torch.tensor([config["parameters"]["nx"]]) 
-ny    = torch.tensor([config["parameters"]["ny"]])
+n_out = torch.tensor([config["IO"]["n_out"]])
+dt    = torch.tensor([config["time"]["dt"]])
+dx    = torch.tensor([config["mesh"]["dx"]]) 
+dy    = torch.tensor([config["mesh"]["dy"]])
+nx    = torch.tensor([config["mesh"]["nx"]]) 
+ny    = torch.tensor([config["mesh"]["ny"]])
 
 if args.animate:
     X = np.genfromtxt("../data/x_coords.csv", delimiter=',')
     Y = np.genfromtxt("../data/y_coords.csv", delimiter=',')
 
-    deepest_arrray = np.genfromtxt(f"../results/{args.filename}_{config["parameters"]["nt"]}.csv", delimiter=',')
+    deepest_arrray = np.genfromtxt(f"../results/{args.filename}_{config['time']['nt']}.csv", delimiter=',')
     deepest = np.max(deepest_arrray)
 
-    nfig = int(config["parameters"]["nt"]/ config["parameters"]["n_out"])
+    nfig = int(config["time"]["nt"]/ config["IO"]["n_out"])
 
     for i in range(1, nfig):
-        Z = np.genfromtxt(f"../results/{args.filename}_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
+        Z = np.genfromtxt(f"../results/{args.filename}_{config['IO']['n_out']*i}.csv", delimiter=',')
         Z_masked = np.ma.masked_where(Z < 0.00000001, Z)
 
         fig, ax = plt.subplots(1,1, figsize=(20,20))
@@ -186,23 +188,20 @@ if args.flux:
 
     #for i in range(0, int(args.nfig) + 1):
     #    os.remove(f"../plots/u_quiver_{i}.png")
-    
-
-
 
 
 if args.animate_comparison:
     X = np.genfromtxt("../data/x_coords.csv", delimiter=',')
     Y = np.genfromtxt("../data/y_coords.csv", delimiter=',')
 
-    deepest_arrray = np.genfromtxt(f"../results/u_{config["parameters"]["nt"]}.csv", delimiter=',')
+    deepest_arrray = np.genfromtxt(f"../results/u_{config['time']['nt']}.csv", delimiter=',')
     deepest = np.max(deepest_arrray)
 
-    nfig = int(config["parameters"]["nt"]/ config["parameters"]["n_out"])
+    nfig = int(config['time']['nt']/ config['IO']['n_out'])
 
     for i in range(1, nfig):
-        Z1 = np.genfromtxt(f"../results/u_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
-        Z2 = np.genfromtxt(f"../results/v_{config["parameters"]["n_out"]*i}.csv", delimiter=',')
+        Z1 = np.genfromtxt(f"../results/u_{config['IO']['n_out']*i}.csv", delimiter=',')
+        Z2 = np.genfromtxt(f"../results/v_{config['IO']['n_out']*i}.csv", delimiter=',')
         Z_masked1 = np.ma.masked_where(np.isclose(Z1, 0.), Z1)
         Z_masked2 = np.ma.masked_where(np.isclose(Z1, 0.), Z2)
 
@@ -225,20 +224,22 @@ if args.animate_comparison:
 
 
 if args.rainfall_data:
-    rainfall = np.genfromtxt("../data/Clifton_rain_modifed_for_rainfall_event.csv", delimiter=',')[1:, 0]
-    time = np.genfromtxt("../data/Clifton_rain_modifed_for_rainfall_event.csv", delimiter=',')[1:, 1]
-    with open("../data/Clifton_rain_modifed_for_rainfall_event.csv", newline="") as f:
+    rainfall = np.genfromtxt(config['IO']['rainfall_data'], delimiter=',')[1:, 0]
+    time = np.genfromtxt(config['IO']['rainfall_data'], delimiter=',')[1:, 1]
+    with open(config['IO']['rainfall_data'], newline="") as f:
         reader = csv.reader(f)
         data = list(reader)
-        rainfall_time = [column[1] for column in data][1:]
+        rainfall_time = [column[1][9:] for column in data][1:]
     print(rainfall_time)
 
     newtime = np.array(range(len(rainfall)))
+    print(newtime)
     fig, ax = plt.subplots(1,1)
+    ax.xaxis.set_major_locator(ticker.AutoLocator())
 
-    plt.plot(0.25 * newtime, rainfall)
-    plt.title("Rainfall event on 5th January 2025")
-    plt.xlabel("Hours")
+    plt.bar(rainfall_time, rainfall)
+    plt.title("Rainfall event on 5th-6th January 2025")
+    plt.xlabel("Time")
     plt.ylabel("Rainfall (mm)")
     plt.savefig("../plots/rainfall_data.png")
     plt.show()

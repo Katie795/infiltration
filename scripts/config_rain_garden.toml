@@ -7,19 +7,20 @@ drain_l = 1.775    # x-coordinate of left hand side drain (m)
 drain_r = 2.225    # y-coordinate of right hand side of drain (m)
 
 [mesh]
-dx = 0.02          # the length of an element (m). Needs to fit with length, x and y direction
-dy = 0.02          # the length of an element (m). Needs to fit with length, x and y direction
-nx = 201           # number of elements in the x-direction
-ny = 61            # number of elements in the y-direction
+dx = 0.015625          # the length of an element (m). Needs to fit with length, x and y direction
+dy = 0.01875          # the length of an element (m). Needs to fit with length, x and y direction
+nx = 255           # number of elements in the x-direction
+ny = 63            # number of elements in the y-direction
 
 [time]
-dt = 0.01          # timestep (s)
-T = 100            # total length of time (s)
+dt = 0.02          # timestep (s)
+T = 2            # total length of time (s)
+nt = 100         # total number of time-steps
 
 [IO]
 rainfall_data =    "../data/Clifton_rain_modifed_for_rainfall_event.csv" # csv file containing rainfall data
 save_fig = true    # whether to save the results to be post-processed
-n_out = 100        # how often to save results (every n_out timesteps)
+n_out = 1        # how often to save results (every n_out timesteps)
 
 [processor]
 device = "cpu"     # which device to run the simulation on. Options: cpu, cuda:0
