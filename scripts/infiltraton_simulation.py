@@ -78,7 +78,7 @@ print(f'Final time:  {T.item()} seconds = {T.item() / 3600} hours')
 # assumption of some equilibrium
 u_old = - torch.unsqueeze(torch.unsqueeze(y, 0), 0)
 
-model = Richards_L(xx, yy, dx, dx, theta_malago, kappa_malago, 0, drain_l=drain_l, drain_r=drain_r)
+model = Richards_L(xx, yy, dx, dx, theta_malago, kappa_malago, 0, drain_l, drain_r)
 #model = Richards_PC(xx, yy, dx, dx, theta_malago, kappa_malago, 3, drain_l=drain_l, drain_r=drain_r)
 
 t = torch.tensor([0.], dtype=torch.float64)
@@ -88,8 +88,6 @@ np.savetxt(f"../results/u_0.csv", u_old.cpu().detach().numpy()[0,0,:,:], delimit
 
 def g(xx, yy, t):
     return 50 * t * dt * (4 + dx - xx[0])
-
-
 
 with torch.no_grad():
     while t < T:

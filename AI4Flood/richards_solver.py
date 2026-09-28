@@ -42,7 +42,6 @@ class Richards(nn.Module):
             self.xx_grids.append(xx)
             self.zz_grids.append(zz)
 
-
     def find_closest_index(self, value, dx):
 
         return torch.round(value / dx).int()
@@ -284,7 +283,7 @@ class Richards(nn.Module):
             A_fine = self.A_L_corr
             A_coarse = self.A_L_corr_res
         else:
-            print("Need to specify whether the phase is 'pred' or 'corr'")
+            raise ValueError("Need to specify whether the phase is 'pred' or 'corr'")
 
         D = L + omega * diff_diag * dt * Kk[:,:,1:-1, 1:-1]
         D_s.append(D)
@@ -343,7 +342,7 @@ class Richards(nn.Module):
             uuinew = boundary_function(ui, g_t=g_org, kappa=self.kappa)
 
             # this is the same as sqrt(error)
-            if torch.mean((uuinew - uui)**2) <= 1e-12:
+            if torch.norm(uuinew - uui, p=2) <= 1e-6:
                 break
             
             ui = ui + (b - A_fine(uuinew, Kk_s[0], dt, diff=diff_filters[0], diff_k=diff_k[0], uuold=uuold, L=L, zz=zz_fine)) * inv_Ds[0]

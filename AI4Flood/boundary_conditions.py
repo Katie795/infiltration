@@ -1,7 +1,6 @@
 # Module containing the boundary conditions
 import torch
 
-
 class BoundaryCondition:
     def __init__(self,
                  dx,
