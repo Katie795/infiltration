@@ -5,6 +5,7 @@ from AI4Flood.richards_solver import *
 from AI4Flood.generate_csv_files import *
 from AI4Flood.richards_coefficients import u_exact_hm, kappa_hm, theta_hm
 from AI4Flood.misc_functions import *
+from AI4Flood.boundary_conditions import BoundaryCondition
 import time 
 from matplotlib.ticker import ScalarFormatter
 
@@ -15,7 +16,7 @@ dt_array = np.array([0.1, 0.05, 0.02, 0.01]) # timestep array
 nx_array = np.array([7, 15, 31, 63])         # number of elements in each edge of mesh
 length = 10                                   # the length of the side of a square domain
 
-PC = True               # predictor corrector method or L method
+PC = False               # predictor corrector method or L method
 nlevels = [3, 4, 5, 6]  # levels of refinement
 
 
@@ -28,6 +29,8 @@ print(f"Running on device {device}")
 
 L2_error = []       # stores the error
 start = time.time() # start timer
+
+boundary = BoundaryCondition()
 
 with torch.no_grad():
     for nx in nx_array:
@@ -63,7 +66,7 @@ with torch.no_grad():
                 g_old = u_exact_hm(xx,yy,t)
                 g_new = u_exact_hm(xx,yy,t + dt)
                 if PC == True:
-                    u_new = model(uold, t, dt, boundary_type="Dirichlet", L=2, g=u_exact_hm, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, nlevel=3)
+                    u_new = model(uold, t, dt, boundary, boundary_type="Dirichlet", L=2, g=u_exact_hm, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, nlevel=3)
                 else:
                     u_new = model(uold, t, dt, L=2, ninner=100000, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new)
                 uold = u_new.clone()

@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from AI4Flood.operators import get_weights_linear_2D, construct_diff_filter
-from AI4Flood.misc_functions import jacobi, jacobi2
 
 class Richards(nn.Module):
     def __init__(self, xx, zz, dx, dy, theta, kappa, n_MG, drain_l, drain_r):
@@ -195,7 +194,7 @@ class Richards(nn.Module):
             u_new[0,0,0,:][saturated] = torch.zeros_like(u_new[0,0,0,:][saturated])
             u_new[0,0,-1, cut1:cut2][id_inactive] = u_new[0,0,-2, cut1:cut2][id_inactive] 
 
-        return u_new
+        return u_new    
 
     def A_L(self, uui, Kk, dt, diff, diff_k, uuold=1, L=1, zz=None):
 
@@ -353,7 +352,7 @@ class Richards_L(Richards):
     def __init__(self, xx, zz, dx, dy,  theta, kappa, n_MG, drain_l, drain_r):
          super().__init__(xx, zz, dx, dy, theta, kappa, n_MG, drain_l, drain_r)
 
-    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, g_old=None, g_new=None, omega=1, g=0, f=0, zz=None):
+    def forward(self, uold, t, dt, boundary, boundary_type, ninner=10, nouter=10, L=2, g_old=None, g_new=None, omega=1, g=0, f=0, zz=None):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
         # Choose which boundary function to use
