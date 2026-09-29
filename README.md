@@ -1,6 +1,6 @@
 # A Neural Physics Model for the Richards Equation for Soil Infiltration
 
-This repository contains a novel approach and solution for solving the Richards equation using the Neural Physics method. In this case, Neural Physics implements a fintite element method for on neural network architectures, taking advantage of the computational speedup available on GPUs.
+This repository contains a novel approach and solution for solving the Richards equation using the Neural Physics method. Neural Physics implements a fintite element method for on neural network architectures, taking advantage of the computational speedup available on GPUs using functionality from PyTorch.
 
 ## Abstract
 [Insert abstract from the paper]
@@ -43,6 +43,8 @@ Alternatively, you can install the required packages by running
 pip install -r requirements.txt
 ```
 
+
+
 Detailed instructions on how to run the code can be found in the docs directory.
 
 ## License 
@@ -65,6 +67,7 @@ If you use this project or the related papaer in your research, please cite it a
 }
 ```
 
-## Contact
+## Contact and related papers
 
 For more information please contact me at km2560@bath.ac.uk
+

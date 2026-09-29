@@ -1,3 +1,7 @@
-numpy
-torch
-matplotlib
+imageio==2.37.4
+matplotlib==3.11.2
+numpy==2.5.3
+pandas==3.0.6
+setuptools==84.0.0
+tomli==2.4.1
+torch==2.13.0

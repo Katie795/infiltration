@@ -1,14 +1,15 @@
 name: flooding-env
 channels:
-  - pytorch
-  - conda-forge
   - defaults
 dependencies:
-  - python==3.10
+  - numpy
+  - ipython
+  - python=3.10
   - pip
   - flake8
-  - ipython
-  - numpy
+  - pandas
+  - plotly
+  - imageio
   - pip:
     - jupyter
     - torch
