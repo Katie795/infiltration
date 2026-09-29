@@ -1,3 +1,5 @@
 results/
 AI4Flood/__pycache__
 __pycache__
+.vscode
+AI4Flood.egg-info/
