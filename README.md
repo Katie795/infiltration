@@ -15,14 +15,56 @@ This repository contains a novel approach and solution for solving the Richards 
 -__Real-World test case__: Applied to a 2D cross section of a rain garden and compared to experimental data
 
 ## Installation:
-To use this package with a GPU, you need to have PyTorch installed with CUDA. It is possible to install this code without using a GPU using conda. If you use Windows you might need to set up a Windows Subsystem for Linux (WSL)
+### Prerequisites
+If you use Windows you might need to set up a Windows Subsystem for Linux (WSL)
+To run this package, it will be helpful to have
+- __Python 3.10__: This will be installed as a part of the virtual environment. Python 3.10 is used for compatibility with the required packages and libraries.
+- __Conda (Preferred)__: It is recommended to use use Conda to simplify the management of your Python environment and dependencies. The installation instructions shown here are for the conda environment.
+- __GPU with CUDA support (Optional)__: This code gives the most speedup when it is run on a GPU, but it is also possible to run it on a CPU instead. If using a GPU, please make sure that it supports CUDA and the CUDA drivers are correctly installed and configured.
 
-First, use the terminal to create a folder on your computer 
+
+First, use the terminal to create a folder on your computer then navigate to the folder:
 ```
 mkdir infiltration_workspace
 ```
-then navigate to the folder
 ```
 cd infiltration_workspace
 ```
+Clone this repository into your folder:
+```
+git clone https://github.com/Katie795/infiltration.git
+```
+To set up the requirement and install the required pacakges, run:
+```
+conda env create -f environment.yml
+```
+Alternatively, you can install the required packages by running
+```
+pip install -r requirements.txt
+```
 
+Detailed instructions on how to run the code can be found in the docs directory.
+
+## License 
+This project is licensed under the MIT Lisence. See the LICENSE file for more details.
+
+## Citation
+If you use this project or the related papaer in your research, please cite it as follows:
+
+### Paper Citation
+[Insert citation]
+
+### GitHub Repository Citation:
+
+```
+@misc{mackenzie2026infiltration,
+  author = {Katherine MacKenzie},
+  title = {A Neural Physics Model for the Richards Equation for Soil Infiltration},
+  year = {2026},
+  url = {https://github.com/Katie795/infiltration}
+}
+```
+
+## Contact
+
+For more information please contact me at km2560@bath.ac.uk
