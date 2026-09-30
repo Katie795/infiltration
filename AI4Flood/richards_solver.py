@@ -36,6 +36,8 @@ class Richards(nn.Module):
         self.xx_grids = []
         self.zz_grids = []
 
+        print(self.zz)
+
         for i in range(self.n_MG - 1):
             xx, zz = self.restrict_grid(xx, zz)
             self.xx_grids.append(xx)
@@ -251,7 +253,6 @@ class Richards(nn.Module):
         return L * ui - 0.5 * dt * div_k_grad_ui
 
 
-    @torch.no_grad()
     def V_cycle_MG(self, uj, b, t, dt, boundary_function, smoothing_iterations=3, MG_iterations=1, nlevel=1, phase="pred", uold=0, L=1, zz=None, g_old=None, g_list=None):
         dx = self.dx
         ui = uj.clone()
@@ -306,6 +307,8 @@ class Richards(nn.Module):
         inv_Ds = [1 / D for D in D_s]
         zz_fine = zz[0] if zz is not None else None
 
+        print(zz_fine)
+
         for MG in range(MG_iterations):
             uui = boundary_function(ui, g_t=g_org, kappa=self.kappa) # apply dirichlet boundary condition
 
@@ -352,7 +355,7 @@ class Richards_L(Richards):
     def __init__(self, xx, zz, dx, dy,  theta, kappa, n_MG, drain_l, drain_r):
          super().__init__(xx, zz, dx, dy, theta, kappa, n_MG, drain_l, drain_r)
 
-    def forward(self, uold, t, dt, boundary, boundary_type, ninner=10, nouter=10, L=2, g_old=None, g_new=None, omega=1, g=0, f=0, zz=None):
+    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, g_old=None, g_new=None, omega=1, g=0, f=0, zz=None):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
         # Choose which boundary function to use
@@ -384,14 +387,16 @@ class Richards_L(Richards):
 
         for j in range(nouter):
 
-            uiplus = torch.zeros_like(uj) # set up jacobi iteration
+            #uiplus = torch.zeros_like(uj) # set up jacobi iteration
             ui = uj.clone()
             uuj = boundary_function(uj, g_t=g_new, kappa=self.kappa)
+
 
             # Right hand side of Jacobi iteration - fixed for inner iterations
             b = L * uj + dt * f_new  + self.cmm(self.theta(uuold) - self.theta(uuj))
 
             for i in range(ninner):
+  
                 uui = boundary_function(ui, g_t=g_new, kappa=self.kappa) # apply dirichlet boundary condition
 
                 if zz == None:
@@ -402,11 +407,10 @@ class Richards_L(Richards):
                     div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui + self.zz))  \
                                                                     + self.kappa(uj) * self.diff(uui + self.zz) \
                                                                     - (ui + z) * self.diff(self.kappa(uuj))) # updating diffusion term
-                
+
                 Au = L * ui - dt * div_k_grad_ui
 
-                uiplus = (ui  + (b - Au) / D).clone() # Jacobi iteration # omega = 1 does not work!!!            
-
+                uiplus = (ui  + (b - Au) / D).clone() # Jacobi iteration # omega = 1 does not work!!!  
                 assert torch.isinf(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
                 assert torch.isnan(torch.sqrt(torch.mean((uiplus - ui)**2))) == False
 

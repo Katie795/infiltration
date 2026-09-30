@@ -135,7 +135,9 @@ if args.potential:
         fig, ax = plt.subplots(1,1, figsize=(16,4.8))
         cmap = plt.colormaps['inferno']
 
-        height = ax.pcolormesh(X, Y, Z, shading="nearest", vmin=min_p, vmax=max_p, cmap=cmap)
+        #vmin=min_p, vmax=max_p, 
+
+        height = ax.pcolormesh(X, Y, Z, shading="nearest", cmap=cmap)
         cb = plt.colorbar(height, label=r"Capillary potential $u$")
         cs = ax.contour(X, Y, Z, levels, linewidths=1, colors="black")
         ax.clabel(cs,  fontsize=9)

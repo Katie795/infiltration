@@ -217,10 +217,10 @@ def find_indices_rain_garden(input_file, output_file):
 def generate_csv_files(nx, ny, length, depth, name):
     generate_rectangular_coords(nx, ny, name=f"{name}_", x_length=length, y_length=depth)
     generate_rectangular_padded_coords(nx, ny, name=f"{name}_padded_", x_length=length, y_length=depth)
-    x = torch.tensor(np.genfromtxt(f"../data/{name}_x_coords.csv", delimiter=',')).double()
-    y = torch.tensor(np.genfromtxt(f"../data/{name}_y_coords.csv", delimiter=',')).double()
-    x_padded = torch.tensor(np.genfromtxt(f"../data/{name}_padded_x_coords.csv", delimiter=',')).double()
-    y_padded = torch.tensor(np.genfromtxt(f"../data/{name}_padded_y_coords.csv", delimiter=',')).double()
+    x = torch.tensor(np.genfromtxt(f"../data/{name}_x_coords.csv", delimiter=','), dtype=torch.float32)
+    y = torch.tensor(np.genfromtxt(f"../data/{name}_y_coords.csv", delimiter=','), dtype=torch.float32)
+    x_padded = torch.tensor(np.genfromtxt(f"../data/{name}_padded_x_coords.csv", delimiter=','), dtype=torch.float32)
+    y_padded = torch.tensor(np.genfromtxt(f"../data/{name}_padded_y_coords.csv", delimiter=','), dtype=torch.float32)
 
     return x,y, x_padded, y_padded
 

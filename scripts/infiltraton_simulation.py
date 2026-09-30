@@ -43,7 +43,6 @@ def rainfall_flux(t, dt):
 device = torch.device(config["processor"]["device"])
 print(f"Running on device {device}")
 clear_output_folder("../results")
-torch.set_default_dtype(torch.float64)
 torch.set_default_device(device)
 
 # # # ##################################################### # # #
@@ -81,7 +80,7 @@ u_old = - torch.unsqueeze(torch.unsqueeze(y, 0), 0)
 model = Richards_L(xx, yy, dx, dx, theta_malago, kappa_malago, 0, drain_l, drain_r)
 #model = Richards_PC(xx, yy, dx, dx, theta_malago, kappa_malago, 3, drain_l=drain_l, drain_r=drain_r)
 
-t = torch.tensor([0.], dtype=torch.float64)
+t = torch.tensor([0.])
 i = 0
 start = time.time()
 np.savetxt(f"../results/u_0.csv", u_old.cpu().detach().numpy()[0,0,:,:], delimiter=",")

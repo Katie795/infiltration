@@ -16,15 +16,14 @@ dt_array = np.array([0.1, 0.05, 0.02, 0.01]) # timestep array
 nx_array = np.array([7, 15, 31, 63])         # number of elements in each edge of mesh
 length = 10                                   # the length of the side of a square domain
 
-PC = False               # predictor corrector method or L method
+PC = True               # predictor corrector method or L method
 nlevels = [3, 4, 5, 6]  # levels of refinement
 
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
-device = torch.device("cuda:0")
+device = torch.device("cpu")
 torch.set_default_device(device)
-torch.set_default_dtype(torch.float64)
 print(f"Running on device {device}")
 
 L2_error = []       # stores the error
@@ -37,12 +36,10 @@ with torch.no_grad():
         print(f"Evaluating on mesh {nx}")
         L2_error_nx = []
         dx = length / nx
-        start_mesh = time.time() # start timer
 
         x, y, xx, yy = generate_csv_files(nx, nx, length, length, name="horung_messsing")
-        end_mesh = time.time()
 
-        zz = torch.zeros_like(yy)
+        #zz = torch.zeros_like(yy)
 
         u_init = u_exact_hm(x,y,0) # initial condition 
         uold = u_init.clone()
@@ -66,7 +63,7 @@ with torch.no_grad():
                 g_old = u_exact_hm(xx,yy,t)
                 g_new = u_exact_hm(xx,yy,t + dt)
                 if PC == True:
-                    u_new = model(uold, t, dt, boundary, boundary_type="Dirichlet", L=2, g=u_exact_hm, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, nlevel=3)
+                    u_new = model(uold, t, dt, boundary_type="Dirichlet", L=2, g=u_exact_hm, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, nlevel=3)
                 else:
                     u_new = model(uold, t, dt, L=2, ninner=100000, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new)
                 uold = u_new.clone()

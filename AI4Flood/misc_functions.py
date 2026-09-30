@@ -1,7 +1,6 @@
 import os, shutil
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-import torch
 
 def clear_output_folder(folder):
 

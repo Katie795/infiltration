@@ -52,7 +52,7 @@ class AI4SWE(nn.Module):
         values_vv[0,0,:,nx+1] = values_vv[0,0,:,nx]
         values_vv[0,0,0,:] = values_vv[0,0,1,:]*0
         values_vv[0,0,ny+1,:] = values_vv[0,0,ny,:]*0
-        return values_vv       
+        return values_vv
 
     def boundary_condition_eta(self, values_h, values_hp):
 
