@@ -17,7 +17,7 @@ class Richards(nn.Module):
         self.theta = theta
         self.kappa = kappa
 
-        [w_diff, wm1, wres, diag, bias] = get_weights_linear_2D(self.dx)
+        [w_diff, wm1, wres, diag, bias] = get_weights_linear_2D(self.dx, self.dy)
         
         self.diff = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
         self.cmm  = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=0)
@@ -36,12 +36,11 @@ class Richards(nn.Module):
         self.xx_grids = []
         self.zz_grids = []
 
-        print(self.zz)
+        for i in range(self.n_MG):
 
-        for i in range(self.n_MG - 1):
-            xx, zz = self.restrict_grid(xx, zz)
             self.xx_grids.append(xx)
             self.zz_grids.append(zz)
+            xx, zz = self.restrict_grid(xx, zz)
 
     def find_closest_index(self, value, dx):
 
@@ -51,11 +50,12 @@ class Richards(nn.Module):
 
         x = xx[1:-1, 1:-1] # eliminating padding
         y = yy[1:-1, 1:-1]
+
         x = x[None, None, :, :]
         y = y[None, None, :, :]
 
-        x_new = self.res(x)# every second value
-        y_new = self.res(y)
+        x_new = x[:, :, ::2, ::2]
+        y_new = y[:, :, ::2, ::2]
 
         xx_new = torch.nn.functional.pad(x_new, (1,1,1,1), mode="constant", value=0)[0,0]
         yy_new = torch.nn.functional.pad(y_new, (1,1,1,1), mode="constant", value=0)[0,0]
@@ -64,7 +64,7 @@ class Richards(nn.Module):
         new_dy = 2 * (y[0, 0, 0, 0] - y[0, 0, 1, 0])
 
         xx_new[1:-1, 0] = xx_new[1:-1, 1] - new_dx 
-        xx_new[1:-1, -1] = xx_new[1:-1, -2] + new_dx 
+        xx_new[1:-1, -1] = xx_new[1:-1,-2] + new_dx 
         xx_new[0] = xx_new[1]
         xx_new[-1] = xx_new[-2] 
 
@@ -72,6 +72,11 @@ class Richards(nn.Module):
         yy_new[-1, 1:-1] = yy_new[-2, 1:-1] - new_dy
         yy_new[:, 0] = yy_new[:, 1]
         yy_new[:, -1] = yy_new[:, -2]
+
+        assert xx_new[0, 1] == xx[0, 1] # check the boundary coordinates are still held
+        assert xx_new[0, -2] == xx[0, -2]
+        assert yy_new[1, 0] == yy[1, 0]
+        assert yy_new[-2, 0] == yy[-2, 0]
         
         return xx_new, yy_new
 
@@ -255,6 +260,7 @@ class Richards(nn.Module):
 
     def V_cycle_MG(self, uj, b, t, dt, boundary_function, smoothing_iterations=3, MG_iterations=1, nlevel=1, phase="pred", uold=0, L=1, zz=None, g_old=None, g_list=None):
         dx = self.dx
+        dy = self.dy
         ui = uj.clone()
         g_org = g_old
         uuj_org = boundary_function(uj, g_t=g_org, kappa=self.kappa) # apply dirichlet boundary condition
@@ -269,7 +275,7 @@ class Richards(nn.Module):
         dx_s.append(dx)
         Kk = self.kappa(uuj_org)
         Kk_s.append(Kk)
-        diff_filters.append(construct_diff_filter(dx))
+        diff_filters.append(construct_diff_filter(self.dx, self.dy))
         diff_k.append(diff_filters[0](Kk))
 
         if phase == "pred":
@@ -288,14 +294,18 @@ class Richards(nn.Module):
         D = L + omega * diff_diag * dt * Kk[:,:,1:-1, 1:-1]
         D_s.append(D)
 
+        print(uj.shape)
+
         for i in range(1, nlevel):
             # restricting to smaller mesh  
             uj = self.res(uj)
+            print(uj.shape)
             g_t = g_list[i] if g_old is not None else None
             uuj = boundary_function(uj, g_t=g_t, kappa=self.kappa)
             Kk = self.kappa(uuj)
             dx = 2 * dx
-            diff_filters.append(construct_diff_filter(dx))
+            dy = 2 * dy
+            diff_filters.append(construct_diff_filter(dx, dy))
             diff_diag = 0.25 * diff_diag
             D = L + omega * dt * diff_diag * Kk[:,:,1:-1,1:-1]
 
@@ -305,9 +315,7 @@ class Richards(nn.Module):
             diff_k.append(diff_filters[i](Kk))
 
         inv_Ds = [1 / D for D in D_s]
-        zz_fine = zz[0] if zz is not None else None
-
-        print(zz_fine)
+        zz_fine = self.zz_grids[0] if zz is not None else None
 
         for MG in range(MG_iterations):
             uui = boundary_function(ui, g_t=g_org, kappa=self.kappa) # apply dirichlet boundary condition
@@ -327,7 +335,7 @@ class Richards(nn.Module):
             a = torch.zeros_like(r[:, :, 1:-1, 1:-1])
 
             for i in reversed(range(1, nlevel)):
-                zz_coarse = zz[i] if zz is not None else None
+                zz_coarse = self.zz_grids[i] if zz is not None else None
 
                 aa = boundary_function(a, smoothing=True) # APPLIES ZERO BOUNDARY CONDITIONS
                 if i == nlevel-1: # if in coarsest grid
@@ -479,10 +487,9 @@ class Richards_PC(Richards):
 
             b = L * uj + dt * f_new  + self.theta(uold) - self.theta(uj)
             upred = self.V_cycle_MG(uj, b, t, dt, boundary_function, smoothing_iterations=smoothing_iterations, MG_iterations=MG_iterations,  nlevel=nlevel, phase="pred", L=L, zz=zz, g_old=g_old, g_list=g_list)
-
             b_half = L * upred + 0.5 * dt * (f_new + f_old) + self.theta(uold) - self.theta(upred)
             ucorr = self.V_cycle_MG(upred, b_half, t, dt, boundary_function, smoothing_iterations=smoothing_iterations, MG_iterations=MG_iterations,  nlevel=nlevel, phase="corr", uold=uold, L=L, zz=zz,  g_old=g_old, g_list=g_list)
-
+           
             assert torch.isinf(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
             assert torch.isnan(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
             

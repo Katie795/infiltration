@@ -7,10 +7,8 @@ drain_l = 1.775    # x-coordinate of left hand side drain (m)
 drain_r = 2.225    # y-coordinate of right hand side of drain (m)
 
 [mesh]
-dx = 0.015625          # the length of an element (m). Needs to fit with length, x and y direction
-dy = 0.01875          # the length of an element (m). Needs to fit with length, x and y direction
-nx = 255           # number of elements in the x-direction
-ny = 63            # number of elements in the y-direction
+nx = 256           # number of elements in the x-direction
+ny = 64            # number of elements in the y-direction
 
 [time]
 dt = 0.02          # timestep (s)

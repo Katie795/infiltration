@@ -31,10 +31,10 @@ def generate_rectangular_coords(nx, ny, name="", x_length=1, y_length=1):
     dx = x_length / nx
     dy = y_length / ny
 
-    x_coords = np.zeros((ny+1, nx+1))
-    y_coords = np.zeros((ny+1, nx+1))
-    for i in range(nx+1):
-        for j in range(ny+1):
+    x_coords = np.zeros((ny, nx))
+    y_coords = np.zeros((ny, nx))
+    for i in range(nx):
+        for j in range(ny):
             x_coords[j][i] = dx * i
             y_coords[j][i] = dy * ny - dy * j
 
@@ -51,10 +51,10 @@ def generate_rectangular_padded_coords(nx, ny, name="", x_length=1, y_length=1):
     dx = x_length / nx
     dy = y_length / ny
 
-    x_coords = np.zeros((ny+3, nx+3))
-    y_coords = np.zeros((ny+3, nx+3))
-    for i in range(nx+3):
-        for j in range(ny+3):
+    x_coords = np.zeros((ny+2, nx+2))
+    y_coords = np.zeros((ny+2, nx+2))
+    for i in range(nx+2):
+        for j in range(ny+2):
             x_coords[j][i] = dx * (i - 1)
             y_coords[j][i] = dy * ny - dy * (j-1) 
 

@@ -52,8 +52,6 @@ length   = torch.tensor([config["geometry"]["length"]])
 depth    = torch.tensor([config["geometry"]["depth"]]) 
 drain_l  = torch.tensor([config["geometry"]["drain_l"]])
 drain_r  = torch.tensor([config["geometry"]["drain_r"]])
-dx       = torch.tensor([config["mesh"]["dx"]]) 
-dy       = torch.tensor([config["mesh"]["dy"]])
 nx       = torch.tensor([config["mesh"]["nx"]])
 ny       = torch.tensor([config["mesh"]["ny"]])
 dt       = torch.tensor([config["time"]["dt"]])
@@ -62,6 +60,10 @@ save_fig = torch.tensor([config["IO"]["save_fig"]])
 n_out    = torch.tensor([config["IO"]["n_out"]])
 
 x, y, xx, yy = generate_csv_files(nx, ny, length, depth, name="infiltration")
+
+print(x.shape)
+dx = length / nx
+dy = depth / ny
 
 # # # ################################### # # #
 # # # ######   Create field (tensor)  ### # # #
@@ -77,8 +79,8 @@ print(f'Final time:  {T.item()} seconds = {T.item() / 3600} hours')
 # assumption of some equilibrium
 u_old = - torch.unsqueeze(torch.unsqueeze(y, 0), 0)
 
-model = Richards_L(xx, yy, dx, dx, theta_malago, kappa_malago, 0, drain_l, drain_r)
-#model = Richards_PC(xx, yy, dx, dx, theta_malago, kappa_malago, 3, drain_l=drain_l, drain_r=drain_r)
+#model = Richards_L(xx, yy, dx, dy, theta_malago, kappa_malago, 0, drain_l, drain_r)
+model = Richards_PC(xx, yy, dx, dy, theta_malago, kappa_malago, 3, drain_l=drain_l, drain_r=drain_r)
 
 t = torch.tensor([0.])
 i = 0
@@ -93,8 +95,8 @@ with torch.no_grad():
         print(f"t is {t.item()}")
         #g_old = g(xx, yy, t)    # used for conditional boundary conditions!! With artificial swes.
         #g_new = g(xx, yy, t + dt) # for L-method, g_old and g_new, for PC method, g
-        u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=50, L=2, zz=yy) 
-        #u_new = model(u_old, t, dt, boundary_type="Neumann", L=2, nlevel=3, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, zz=yy)  
+        #u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=50, L=2, zz=yy) 
+        u_new = model(u_old, t, dt, boundary_type="Neumann", L=2, nlevel=3, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, zz=yy)  
         t += dt
         i += 1
         # save figure every n_out timesteps

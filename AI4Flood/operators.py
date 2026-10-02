@@ -2,20 +2,20 @@
 import numpy as np
 import torch
 
-def get_weights_linear_2D(dx):
-    # Isotropic Laplacian  # TODO: make this vary in dy as well
+def get_weights_linear_2D(dx, dy):
+
     # TODO: is this the right sign?
-    w_diff = torch.tensor([[[[1/3/dx**2], # Diffusion operator
-                         [1/3/dx**2], 
-                         [1/3/dx**2]],
+    w_diff = torch.tensor([[[[1/3/(dx * dy)], # Diffusion operator
+                         [1/3/(dx * dy)], 
+                         [1/3/(dx * dy)]],
 
-                        [[1/3/dx**2], 
-                         [-8/3/dx**2], 
-                         [1/3/dx**2]],
+                        [[1/3/(dx * dy)], 
+                         [-8/3/(dx * dy)], 
+                         [1/3/(dx * dy)]],
 
-                        [[1/3/dx**2],
-                         [1/3/dx**2], 
-                         [1/3/dx**2]]]], dtype=torch.float32)
+                        [[1/3/(dx * dy)],
+                         [1/3/(dx * dy)], 
+                         [1/3/(dx * dy)]]]], dtype=torch.float32)
 
     wm1 = torch.tensor([[[[0.0], # Mass operator
                          [0.0], 
@@ -51,24 +51,21 @@ def get_weights_linear_2D(dx):
     diag = -np.array(w_diff.cpu(), dtype=None, copy=None)[0,0,1,1] # diagonal matrix
 
     bias = torch.tensor([0.0], dtype=torch.float32)
-
-    print(f"dtype of w1 is {wm1.dtype}")
-
     return w_diff, wm1, w_res, diag, bias
 
-def construct_diff_filter(dx):
+def construct_diff_filter(dx, dy):
 
-    w_diff = torch.tensor([[[[1/3/dx**2], # Diffusion operator
-                         [1/3/dx**2], 
-                         [1/3/dx**2]],
+    w_diff = torch.tensor([[[[1/3/(dx * dy)], # Diffusion operator
+                         [1/3/(dx * dy)], 
+                         [1/3/(dx * dy)]],
 
-                        [[1/3/dx**2], 
-                         [-8/3/dx**2], 
-                         [1/3/dx**2]],
+                        [[1/3/(dx * dy)], 
+                         [-8/3/(dx * dy)], 
+                         [1/3/(dx * dy)]],
 
-                        [[1/3/dx**2],
-                         [1/3/dx**2], 
-                         [1/3/dx**2]]]], dtype=torch.float32)
+                        [[1/3/(dx * dy)],
+                         [1/3/(dx * dy)], 
+                         [1/3/(dx * dy)]]]], dtype=torch.float32)
 
     w_diff = torch.reshape(w_diff,(1,1,3,3)) # change shape from (1, 3, 3, 1) to (1, 1, 3, 3)
     bias = torch.tensor([0.0])

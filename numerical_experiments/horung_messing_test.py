@@ -39,8 +39,6 @@ with torch.no_grad():
 
         x, y, xx, yy = generate_csv_files(nx, nx, length, length, name="horung_messsing")
 
-        #zz = torch.zeros_like(yy)
-
         u_init = u_exact_hm(x,y,0) # initial condition 
         uold = u_init.clone()
 
