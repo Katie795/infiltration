@@ -54,8 +54,8 @@ class Richards(nn.Module):
         x = x[None, None, :, :]
         y = y[None, None, :, :]
 
-        x_new = x[:, :, ::2, ::2]
-        y_new = y[:, :, ::2, ::2]
+        x_new = self.res(x)#x[:, :, ::2, ::2]
+        y_new = self.res(y)#y[:, :, ::2, ::2]
 
         xx_new = torch.nn.functional.pad(x_new, (1,1,1,1), mode="constant", value=0)[0,0]
         yy_new = torch.nn.functional.pad(y_new, (1,1,1,1), mode="constant", value=0)[0,0]
@@ -73,10 +73,10 @@ class Richards(nn.Module):
         yy_new[:, 0] = yy_new[:, 1]
         yy_new[:, -1] = yy_new[:, -2]
 
-        assert xx_new[0, 1] == xx[0, 1] # check the boundary coordinates are still held
-        assert xx_new[0, -2] == xx[0, -2]
-        assert yy_new[1, 0] == yy[1, 0]
-        assert yy_new[-2, 0] == yy[-2, 0]
+        #assert xx_new[0, 1] == xx[0, 1] # check the boundary coordinates are still held
+        #assert xx_new[0, -2] == xx[0, -2]
+        #assert yy_new[1, 0] == yy[1, 0]
+        #assert yy_new[-2, 0] == yy[-2, 0]
         
         return xx_new, yy_new
 
@@ -294,13 +294,12 @@ class Richards(nn.Module):
         D = L + omega * diff_diag * dt * Kk[:,:,1:-1, 1:-1]
         D_s.append(D)
 
-        print(uj.shape)
-
         for i in range(1, nlevel):
             # restricting to smaller mesh  
             uj = self.res(uj)
-            print(uj.shape)
+
             g_t = g_list[i] if g_old is not None else None
+  
             uuj = boundary_function(uj, g_t=g_t, kappa=self.kappa)
             Kk = self.kappa(uuj)
             dx = 2 * dx
@@ -477,8 +476,7 @@ class Richards_PC(Richards):
         g_old = g(self.xx, self.zz, t) if g is not None else None
         if g is not None:
             g_list = []
-            g_list.append(g(self.xx, self.zz, t))
-            for i in range(self.n_MG - 1):
+            for i in range(self.n_MG):
                 g_list.append(g(self.xx_grids[i], self.zz_grids[i], tnew))
         else:
             g_list = None

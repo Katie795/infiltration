@@ -14,7 +14,7 @@ import tomli as tomllib
 import argparse
 from AI4Flood.richards_solver import *
 from AI4Flood.richards_coefficients import theta_malago, kappa_malago
-from AI4Flood.generate_csv_files import generate_csv_files
+from AI4Flood.generate_csv_files import generate_coordinate_tensors
 from AI4Flood.misc_functions import clear_output_folder
 
 parser = argparse.ArgumentParser()
@@ -59,7 +59,7 @@ T        = torch.tensor([config["time"]["T"]])
 save_fig = torch.tensor([config["IO"]["save_fig"]])
 n_out    = torch.tensor([config["IO"]["n_out"]])
 
-x, y, xx, yy = generate_csv_files(nx, ny, length, depth, name="infiltration")
+x, y, xx, yy = generate_coordinate_tensors(nx, ny, length, depth, name="infiltration")
 
 print(x.shape)
 dx = length / nx

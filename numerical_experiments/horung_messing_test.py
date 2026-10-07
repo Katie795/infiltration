@@ -37,7 +37,7 @@ with torch.no_grad():
         L2_error_nx = []
         dx = length / nx
 
-        x, y, xx, yy = generate_csv_files(nx, nx, length, length, name="horung_messsing")
+        x, y, xx, yy = generate_coordinate_tensors(nx, nx, length, length, name="horung_messsing")
 
         u_init = u_exact_hm(x,y,0) # initial condition 
         uold = u_init.clone()

@@ -1,13 +1,17 @@
-# Functions for preprocessing csv data
+# Functions for preprocessing csv data and 
 import numpy as np
 import pandas as pd
 import torch
 
 
 def generate_coords(nx, ny, name="", length=1):
-    """Generate csv files containing the x and y coordinate data for a uniform grid
+    """Generate csv files containing the x and y coordinate data for a uniform grid on a square domain
     
-    :args filename: csv file to generate coordintates from"""
+    :args nx (int): number of coordinates in the x-direction 
+    :args ny (int): number of coordinates in the y-direction
+    :args name (str): the name of the file to save to
+    :args length (float): length of the sides of the square domain   
+    """
 
     dx = length / nx
 
@@ -23,52 +27,16 @@ def generate_coords(nx, ny, name="", length=1):
 
     return x_coords, y_coords
 
-def generate_rectangular_coords(nx, ny, name="", x_length=1, y_length=1):
-    """Generate csv files containing the x and y coordinate data for a uniform grid
-    
-    :args filename: csv file to generate coordintates from"""
-
-    dx = x_length / nx
-    dy = y_length / ny
-
-    x_coords = np.zeros((ny, nx))
-    y_coords = np.zeros((ny, nx))
-    for i in range(nx):
-        for j in range(ny):
-            x_coords[j][i] = dx * i
-            y_coords[j][i] = dy * ny - dy * j
-
-    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
-    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
-
-    return x_coords, y_coords
-
-def generate_rectangular_padded_coords(nx, ny, name="", x_length=1, y_length=1):
-    """Generate csv files containing the x and y coordinate data for a uniform grid
-    
-    :args filename: csv file to generate coordintates from"""
-
-    dx = x_length / nx
-    dy = y_length / ny
-
-    x_coords = np.zeros((ny+2, nx+2))
-    y_coords = np.zeros((ny+2, nx+2))
-    for i in range(nx+2):
-        for j in range(ny+2):
-            x_coords[j][i] = dx * (i - 1)
-            y_coords[j][i] = dy * ny - dy * (j-1) 
-
-    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
-    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
-
-    return x_coords, y_coords
-
 
 def generate_padded_coords(nx, ny, name="", length=1):
-    """Generate csv files containing the x and y coordinate data for a uniform grid
-    
-    :args filename: csv file to generate coordintates from"""
-
+    """Generate csv files containing the x and y coordinate data for a uniform grid 
+    on a square domain with padding
+        
+    :args nx (int): number of coordinates in the x-direction without padding
+    :args ny (int): number of coordinates in the y-direction without padding
+    :args name (str): the name of the file to save to
+    :args length (float): length of the sides of the square domain   
+    """
     dx = length / nx
 
     x_coords = np.zeros((ny+3, nx+3))
@@ -83,6 +51,56 @@ def generate_padded_coords(nx, ny, name="", length=1):
 
     return x_coords, y_coords
 
+def generate_rectangular_coords(nx, ny, name="", x_length=1, y_length=1):
+    """Generate csv files containing the x and y coordinate data for a uniform grid on a rectangular domain
+        
+    :args nx (int): number of coordinates in the x-direction 
+    :args ny (int): number of coordinates in the y-direction
+    :args name (str): the name of the file to save to
+    :args x_length (float): length of the of the rectangular domain in the x-direction
+    :args y_length (float): length of the rectangular domain in the y-direction
+    """
+
+    dx = x_length / nx
+    dy = y_length / ny
+
+    x_coords = np.zeros((ny+1, nx+1))
+    y_coords = np.zeros((ny+1, nx+1))
+    for i in range(nx+1):
+        for j in range(ny+1):
+            x_coords[j][i] = dx * i
+            y_coords[j][i] = dy * ny - dy * j
+
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
+
+    return x_coords, y_coords
+
+def generate_rectangular_padded_coords(nx, ny, name="", x_length=1, y_length=1):
+    """Generate csv files containing the x and y coordinate data for a uniform grid
+      on a rectangular domain with padded coords
+        
+    :args nx (int): number of coordinates in the x-direction without padding
+    :args ny (int): number of coordinates in the y-direction without padding
+    :args name (str): the name of the file to save to
+    :args x_length (float): length of the of the rectangular domain in the x-direction
+    :args y_length (float): length of the rectangular domain in the y-direction
+    """
+
+    dx = x_length / nx
+    dy = y_length / ny
+
+    x_coords = np.zeros((ny+3, nx+3))
+    y_coords = np.zeros((ny+3, nx+3))
+    for i in range(nx+3):
+        for j in range(ny+3):
+            x_coords[j][i] = dx * (i - 1)
+            y_coords[j][i] = dy * ny - dy * (j-1) 
+
+    np.savetxt(f"../data/{name}x_coords.csv", x_coords, delimiter=",")
+    np.savetxt(f"../data/{name}y_coords.csv", y_coords, delimiter=",")
+
+    return x_coords, y_coords
 
 def create_xyz_table(z_file, output_file):
     """Write a paraview-readable csv file with coordinate data and height data, removing data not in
@@ -214,7 +232,17 @@ def find_indices_rain_garden(input_file, output_file):
     df["y_index"] = pd.to_numeric(df["y_index"], downcast="integer")
     df.to_csv(output_file, header=True, index=False)
 
-def generate_csv_files(nx, ny, length, depth, name):
+def generate_coordinate_tensors(nx, ny, length, depth, name):
+    """Generate uniform coordinate tensors x, y, x_padded, y_padded 
+    for a rectangular domain by generating the required csv files
+    
+    :arg nx (int): number of coordinates in the x-direction
+    :arg ny (int): number of coordinates in the y-direction
+    :arg length (float): the length in the x-direction
+    :arg depth (float): the length in the y-direction
+    :arg name (str): name of the coordinate files
+    """
+
     generate_rectangular_coords(nx, ny, name=f"{name}_", x_length=length, y_length=depth)
     generate_rectangular_padded_coords(nx, ny, name=f"{name}_padded_", x_length=length, y_length=depth)
     x = torch.tensor(np.genfromtxt(f"../data/{name}_x_coords.csv", delimiter=','), dtype=torch.float32)
