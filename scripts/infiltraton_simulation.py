@@ -79,8 +79,8 @@ if config["simulation"]["surface"] == "rainfall":
 
     def rainfall_flux(t, dt):
         """Interpolated function for rainfall"""
-        rainfall = np.interp(t, time_data, rainfall_data)
-        return np.asarray(dt.cpu()) * rainfall / (1000 * 15 * 60) # converting mm/15mins flux to m/second / timestep
+        rainfall = np.interp(t.cpu(), time_data, rainfall_data)
+        return torch.tensor(np.asarray(dt.cpu()) * rainfall / (1000 * 15 * 60)) # converting mm/15mins flux to m/second / timestep
     
     with torch.no_grad():
         while t < T:

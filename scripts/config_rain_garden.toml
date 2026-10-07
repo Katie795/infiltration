@@ -11,9 +11,9 @@ nx = 255           # number of elements in the x-direction
 ny = 63            # number of elements in the y-direction
 
 [time]
-dt = 0.02          # timestep (s)
-T = 10            # total length of time (s)
-nt = 500         # total number of time-steps
+dt = 0.5          # timestep (s)
+T = 86400            # total length of time (s)
+nt = 172800        # total number of time-steps
 
 [IO]
 rainfall_data =    "../data/Clifton_rain_modifed_for_rainfall_event.csv" # csv file containing rainfall data
@@ -21,6 +21,6 @@ save_fig = true    # whether to save the results to be post-processed
 n_out = 100        # how often to save results (every n_out timesteps)
 
 [simulation]
-device = "cpu"     # which device to run the simulation on. Options: cpu, cuda:0
-surface = "ponding" # which type of boundary conditions to use on the surface of the soil. Options: "ponding" or "rainfall"
+device = "cuda:0"     # which device to run the simulation on. Options: cpu, cuda:0
+surface = "rainfall" # which type of boundary conditions to use on the surface of the soil. Options: "ponding" or "rainfall"
 model = "L" # which model to use. Options: "L" or "PC"
