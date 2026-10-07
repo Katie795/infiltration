@@ -10,7 +10,9 @@ from matplotlib.ticker import ScalarFormatter
 T = 0.1                                      # total length of time
 nt_array = np.array([1, 2, 5, 10])           # number of timesteps
 dt_array = np.array([0.1, 0.05, 0.02, 0.01]) # timestep array
-nx_array = np.array([7, 15, 31, 63])         # number of elements in each edge of mesh
+#nx_array = np.array([7, 15, 31, 63])         # number of elements in each edge of mesh
+nx_array = np.array([63])
+
 length = 10                                   # the length of the side of a square domain
 
 L2_error = []       # stores the error
