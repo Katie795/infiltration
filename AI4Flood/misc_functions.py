@@ -31,3 +31,18 @@ def plot_tensor_infiltration(x, y, tensor, name):
     height = ax.pcolormesh(x, y, tensor, cmap=cmap)
     cb = plt.colorbar(height, label=name, ax=ax)
     plt.title(name)
+
+
+def calculate_dx(u, dx):
+
+    u_dx = (u[:, 1:] - u[:, :-1]) / dx
+    return u_dx[:-1] # to remain same shape as dy
+
+def calculate_dy(u, dy):
+    u_dy = (u[:-1] - u[1:]) / dy
+    return u_dy[:, :-1] # to remain same shape as dx
+
+def calculate_grad(u, dx, dy):
+    u_dx = calculate_dx(u, dx)
+    u_dy = calculate_dy(u, dy)
+    return u_dx, u_dy

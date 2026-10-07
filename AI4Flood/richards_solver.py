@@ -144,6 +144,7 @@ class Richards(nn.Module):
 
         cut1 = self.find_closest_index(self.drain_l, self.dx)
         cut2 = self.find_closest_index(self.drain_r, self.dx)
+
         u_new[0,0,:,0]   = u_new[0,0,:,1]          # homogeneous neumann  
         u_new[0,0,:,-1]  = u_new[0,0,:,-2]         # homogeneous neumann
         u_new[0,0,-1, :cut1] = u_new[0,0,-2,:cut1] # homogeneous neumann
@@ -152,14 +153,15 @@ class Richards(nn.Module):
         id_active = u_new[0,0,-2, cut1:cut2] >= 0 
         id_inactive = u_new[0,0,-2, cut1:cut2] < 0
 
+
         u_new[0,0,-1, cut1:cut2][id_active] = 0 * u_new[0,0,-1, cut1:cut2][id_active] # set to zero!
         u_new[0,0,-1, cut1:cut2][id_inactive] = u_new[0,0,-2, cut1:cut2][id_inactive] # neumann bcs
 
         if smoothing == False:
-            u_new[0,0,0,:]   = u_new[0,0,0,:] + self.dy * (q / kappa(u_new[:,:,0,:] ) + 1) # inhomogeneous neumann in m 
+            u_new[0,0,0,:]   = u_new[0,0,1,:] + self.dy * (q / kappa(u_new[:,:,1,:] ) + 1) # inhomogeneous neumann in m 
         else:
-            u_new[0,0,0,:]   = u_new[0,0,0,:] 
-
+            u_new[0,0,0,:]   = u_new[0,0,1,:] 
+            
         return u_new
     
 
@@ -193,11 +195,11 @@ class Richards(nn.Module):
         u_new[0,0,-1, cut1:cut2][id_active] = 0 * u_new[0,0,-1, cut1:cut2][id_active] # set to zero seepage occurs
 
         if smoothing == False:
-             u_new[0,0,0,:][unsaturated] = u_new[0,0,0,:][unsaturated] + self.dy * (g_t[unsaturated] / kappa(u_new[:,:,0,:] )[0, 0, unsaturated] + 1) # inhomogeneous neumann in m 
+             u_new[0,0,0,:][unsaturated] = u_new[0,0,1,:][unsaturated] + self.dy * (g_t[unsaturated] / kappa(u_new[:,:,1,:] )[0, 0, unsaturated] + 1) # inhomogeneous neumann in m 
              u_new[0,0,0,:][saturated] = g_t[saturated]
              u_new[0,0,-1, cut1:cut2][id_inactive] = u_new[0,0,-2, cut1:cut2][id_inactive] + self.dx 
         else:
-            u_new[0,0,0,:][unsaturated] = u_new[0,0,0,:][unsaturated]
+            u_new[0,0,0,:][unsaturated] = u_new[0,0,1,:][unsaturated]
             u_new[0,0,0,:][saturated] = torch.zeros_like(u_new[0,0,0,:][saturated])
             u_new[0,0,-1, cut1:cut2][id_inactive] = u_new[0,0,-2, cut1:cut2][id_inactive] 
 
@@ -258,12 +260,12 @@ class Richards(nn.Module):
         return L * ui - 0.5 * dt * div_k_grad_ui
 
 
-    def V_cycle_MG(self, uj, b, t, dt, boundary_function, smoothing_iterations=3, MG_iterations=1, nlevel=1, phase="pred", uold=0, L=1, zz=None, g_old=None, g_list=None):
+    def V_cycle_MG(self, uj, b, t, dt, boundary_function, smoothing_iterations=3, MG_iterations=1, nlevel=1, phase="pred", uold=0, L=1, zz=None, g_old=None, g_list=None, q=None):
         dx = self.dx
         dy = self.dy
         ui = uj.clone()
         g_org = g_old
-        uuj_org = boundary_function(uj, g_t=g_org, kappa=self.kappa) # apply dirichlet boundary condition
+        uuj_org = boundary_function(uj, g_t=g_org, kappa=self.kappa, q=q) # apply dirichlet boundary condition
         diff_diag = self.diag
 
         D_s = []
@@ -285,7 +287,7 @@ class Richards(nn.Module):
             A_coarse = self.A_L
         elif phase == "corr":
             omega = 0.5
-            uuold = boundary_function(uold, g_t=g_old, kappa=self.kappa)
+            uuold = boundary_function(uold, g_t=g_old, kappa=self.kappa, q=q)
             A_fine = self.A_L_corr
             A_coarse = self.A_L_corr_res
         else:
@@ -300,7 +302,7 @@ class Richards(nn.Module):
 
             g_t = g_list[i] if g_old is not None else None
   
-            uuj = boundary_function(uj, g_t=g_t, kappa=self.kappa)
+            uuj = boundary_function(uj, g_t=g_t, kappa=self.kappa, q=q)
             Kk = self.kappa(uuj)
             dx = 2 * dx
             dy = 2 * dy
@@ -317,12 +319,12 @@ class Richards(nn.Module):
         zz_fine = self.zz_grids[0] if zz is not None else None
 
         for MG in range(MG_iterations):
-            uui = boundary_function(ui, g_t=g_org, kappa=self.kappa) # apply dirichlet boundary condition
+            uui = boundary_function(ui, g_t=g_org, kappa=self.kappa, q=q) # apply dirichlet boundary condition
 
             for j in range(smoothing_iterations): # Jacobi relaxation
                 r = b - A_fine(uui, Kk_s[0], dt, diff=diff_filters[0], diff_k=diff_k[0], uuold=uuold, L=L, zz=zz_fine)
                 ui = ui + inv_Ds[0] * 0.5 * r 
-                uui = boundary_function(ui, g_t=g_org, kappa=self.kappa) # apply dirichlet boundary condition
+                uui = boundary_function(ui, g_t=g_org, kappa=self.kappa, q=q) # apply dirichlet boundary condition
 
             r_s = []
             r_s.append(r)
@@ -348,7 +350,7 @@ class Richards(nn.Module):
                 a = self.prol(a) 
             
             ui = ui + a
-            uuinew = boundary_function(ui, g_t=g_org, kappa=self.kappa)
+            uuinew = boundary_function(ui, g_t=g_org, kappa=self.kappa, q=q)
 
             # this is the same as sqrt(error)
             if torch.norm(uuinew - uui, p=2) <= 1e-6:
@@ -362,7 +364,7 @@ class Richards_L(Richards):
     def __init__(self, xx, zz, dx, dy,  theta, kappa, n_MG, drain_l, drain_r):
          super().__init__(xx, zz, dx, dy, theta, kappa, n_MG, drain_l, drain_r)
 
-    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, g_old=None, g_new=None, omega=1, g=0, f=0, zz=None):
+    def forward(self, uold, t, dt, boundary_type, ninner=10, nouter=10, L=2, g_old=None, g_new=None, omega=1, g=0, f=0, zz=None, q=None):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
 
         # Choose which boundary function to use
@@ -383,7 +385,7 @@ class Richards_L(Richards):
         tnew = t + dt
 
         uj = uold.clone()
-        uuold = boundary_function(uold, g_t=g_old, kappa=self.kappa)
+        uuold = boundary_function(uold, g_t=g_old, kappa=self.kappa, q=q)
         
         if f == 0:
             f_new = torch.tensor(0)
@@ -396,7 +398,7 @@ class Richards_L(Richards):
 
             #uiplus = torch.zeros_like(uj) # set up jacobi iteration
             ui = uj.clone()
-            uuj = boundary_function(uj, g_t=g_new, kappa=self.kappa)
+            uuj = boundary_function(uj, g_t=g_new, kappa=self.kappa, q=q)
 
 
             # Right hand side of Jacobi iteration - fixed for inner iterations
@@ -404,7 +406,7 @@ class Richards_L(Richards):
 
             for i in range(ninner):
   
-                uui = boundary_function(ui, g_t=g_new, kappa=self.kappa) # apply dirichlet boundary condition
+                uui = boundary_function(ui, g_t=g_new, kappa=self.kappa, q=q) # apply dirichlet boundary condition
 
                 if zz == None:
                     div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui))  \
