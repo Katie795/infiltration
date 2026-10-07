@@ -12,13 +12,13 @@ ny = 63            # number of elements in the y-direction
 
 [time]
 dt = 0.02          # timestep (s)
-T = 2            # total length of time (s)
-nt = 100         # total number of time-steps
+T = 10            # total length of time (s)
+nt = 500         # total number of time-steps
 
 [IO]
 rainfall_data =    "../data/Clifton_rain_modifed_for_rainfall_event.csv" # csv file containing rainfall data
 save_fig = true    # whether to save the results to be post-processed
-n_out = 1        # how often to save results (every n_out timesteps)
+n_out = 100        # how often to save results (every n_out timesteps)
 
-[processor]
+[simulation]
 device = "cpu"     # which device to run the simulation on. Options: cpu, cuda:0

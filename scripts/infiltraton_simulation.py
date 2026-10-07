@@ -40,14 +40,15 @@ def rainfall_flux(t, dt):
     return np.asarray(dt.cpu()) * rainfall / (1000 * 15 * 60) # converting mm/15mins flux to m/second / timestep
 
 
-device = torch.device(config["processor"]["device"])
+
+
+device = torch.device(config["simulation"]["device"])
 print(f"Running on device {device}")
 clear_output_folder("../results")
 torch.set_default_device(device)
 
-# # # ##################################################### # # #
-# # # #####   Numerical parameters from config file   ##### # # #
-# # # ##################################################### # # #
+
+###   Numerical parameters from config file   ###
 length   = torch.tensor([config["geometry"]["length"]]) 
 depth    = torch.tensor([config["geometry"]["depth"]]) 
 drain_l  = torch.tensor([config["geometry"]["drain_l"]])
@@ -61,26 +62,19 @@ n_out    = torch.tensor([config["IO"]["n_out"]])
 
 x, y, xx, yy = generate_coordinate_tensors(nx, ny, length, depth, name="infiltration")
 
-print(x.shape)
 dx = length / nx
 dy = depth / ny
 
-# # # ################################### # # #
-# # # ######   Create field (tensor)  ### # # #
-# # # ################################### # # #
+###   Create field (tensor) ### 
 print('============== Numerical parameters ===============')
 print(f'Time step: {dt.item()} seconds')
 print(f'Final time:  {T.item()} seconds = {T.item() / 3600} hours')
 
-# # # ################################### # # #
-# # # #######   Initialisation ########## # # #
-# # # ################################### # # #
-
 # assumption of some equilibrium
 u_old = - torch.unsqueeze(torch.unsqueeze(y, 0), 0)
 
-#model = Richards_L(xx, yy, dx, dy, theta_malago, kappa_malago, 0, drain_l, drain_r)
-model = Richards_PC(xx, yy, dx, dy, theta_malago, kappa_malago, 3, drain_l=drain_l, drain_r=drain_r)
+model = Richards_L(xx, yy, dx, dy, theta_malago, kappa_malago, 0, drain_l, drain_r)
+#model = Richards_PC(xx, yy, dx, dy, theta_malago, kappa_malago, 3, drain_l=drain_l, drain_r=drain_r)
 
 t = torch.tensor([0.])
 i = 0
@@ -92,11 +86,12 @@ def g(xx, yy, t):
 
 with torch.no_grad():
     while t < T:
+        q = rainfall_flux(t, dt)
         print(f"t is {t.item()}")
         #g_old = g(xx, yy, t)    # used for conditional boundary conditions!! With artificial swes.
         #g_new = g(xx, yy, t + dt) # for L-method, g_old and g_new, for PC method, g
-        #u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=50, L=2, zz=yy) 
-        u_new = model(u_old, t, dt, boundary_type="Neumann", L=2, nlevel=3, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, zz=yy)  
+        u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=50, L=2, zz=yy, q=q) 
+        #u_new = model(u_old, t, dt, boundary_type="Neumann", L=2, nlevel=3, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, zz=yy)  
         t += dt
         i += 1
         # save figure every n_out timesteps

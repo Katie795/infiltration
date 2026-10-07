@@ -82,10 +82,13 @@ with open(args.config, "rb") as f:
 
 n_out = torch.tensor([config["IO"]["n_out"]])
 dt    = torch.tensor([config["time"]["dt"]])
-dx    = torch.tensor([config["mesh"]["dx"]]) 
-dy    = torch.tensor([config["mesh"]["dy"]])
 nx    = torch.tensor([config["mesh"]["nx"]]) 
 ny    = torch.tensor([config["mesh"]["ny"]])
+length   = torch.tensor([config["geometry"]["length"]]) 
+depth    = torch.tensor([config["geometry"]["depth"]]) 
+dx = length / nx
+dy = depth / ny
+
 
 if args.animate:
     X = np.genfromtxt("../data/x_coords.csv", delimiter=',')
@@ -132,7 +135,7 @@ if args.potential:
 
     for i in range(0, int(args.nfig) + 1):
         Z = np.genfromtxt(f"../results/u_{i}.csv", delimiter=',')
-        fig, ax = plt.subplots(1,1, figsize=(16,4.8))
+        fig, ax = plt.subplots(1,1)
         cmap = plt.colormaps['inferno']
 
         #vmin=min_p, vmax=max_p, 
@@ -141,7 +144,7 @@ if args.potential:
         cb = plt.colorbar(height, label=r"Capillary potential $u$")
         cs = ax.contour(X, Y, Z, levels, linewidths=1, colors="black")
         ax.clabel(cs,  fontsize=9)
-        ax.set_title("Capillary potential in Malago road rain garden")
+        #ax.set_title("Capillary potential in Malago road rain garden")
         ax.set_xlabel("Length (m)")
         ax.set_ylabel("Depth (m)")
         # time is saved every 100 timesteps where each timestep is 0.01 second
@@ -156,9 +159,9 @@ if args.potential:
         plt.close()
 
     images = []
-    #for i in range(0, int(args.nfig) + 1):
-    #    images.append(imageio.imread(f"../plots/u_{i}.png"))
-    #    imageio.mimsave("../plots/malago_infiltration_4.mp4", images)
+    for i in range(0, int(args.nfig) + 1):
+        images.append(imageio.imread(f"../plots/u_{i}.png"))
+        imageio.mimsave("../plots/malago_infiltration_4.mp4", images)
 
     #for i in range(0, int(args.nfig) + 1):
     #    os.remove(f"../plots/u_{i}.png")
@@ -173,12 +176,12 @@ if args.flux:
     for i in range(0, int(args.nfig) + 1):
         Z = torch.tensor(np.genfromtxt(f"../results/u_{i}.csv", delimiter=','))
         grad_x, grad_y = calculate_grad(Z, dx, dy)
-        fig, ax = plt.subplots(1,1, figsize=(16,4.8))
+        fig, ax = plt.subplots(1,1)
 
         q_x = - kappa_malago(Z[:-1, :-1]) * grad_x       # water flux in the x direction
         q_y = - kappa_malago(Z[:-1, :-1]) * (grad_y + 1) # water flux in the y direction. PLus one for gravity
         q = ax.quiver(X[::3, ::3], Y[::3, ::3], q_x[::3, ::3], q_y[::3, ::3])
-        plt.title("Infiltration flux")
+        #plt.title("Infiltration flux")
         plt.tight_layout()
         plt.savefig(f"../plots/u_quiver_{i}.png")
         plt.close()
