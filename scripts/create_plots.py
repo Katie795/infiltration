@@ -135,7 +135,7 @@ if args.potential:
 
     for i in range(0, int(args.nfig) + 1):
         Z = np.genfromtxt(f"../results/u_{i}.csv", delimiter=',')
-        fig, ax = plt.subplots(1,1)
+        fig, ax = plt.subplots(1,1, figsize=(6,4))
         cmap = plt.colormaps['inferno']
 
         #vmin=min_p, vmax=max_p, 
@@ -176,12 +176,14 @@ if args.flux:
     for i in range(0, int(args.nfig) + 1):
         Z = torch.tensor(np.genfromtxt(f"../results/u_{i}.csv", delimiter=','))
         grad_x, grad_y = calculate_grad(Z, dx, dy)
-        fig, ax = plt.subplots(1,1)
+        fig, ax = plt.subplots(1,1,  figsize=(6,4))
 
         q_x = - kappa_malago(Z[:-1, :-1]) * grad_x       # water flux in the x direction
         q_y = - kappa_malago(Z[:-1, :-1]) * (grad_y + 1) # water flux in the y direction. PLus one for gravity
         q = ax.quiver(X[::3, ::3], Y[::3, ::3], q_x[::3, ::3], q_y[::3, ::3])
         #plt.title("Infiltration flux")
+        ax.set_xlabel("Length (m)")
+        ax.set_ylabel("Depth (m)")
         plt.tight_layout()
         plt.savefig(f"../plots/u_quiver_{i}.png")
         plt.close()
