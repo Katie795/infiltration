@@ -31,17 +31,6 @@ args, _ = parser.parse_known_args()
 with open(args.config, "rb") as f:
     config = tomllib.load(f)
 
-rainfall_data = np.genfromtxt(config["IO"]["rainfall_data"], delimiter=',')[1:, 0]
-time_data = 60 * 15 * np.array(range(len(rainfall_data)))
-
-def rainfall_flux(t, dt):
-    """Interpolated function for rainfall"""
-    rainfall = np.interp(t, time_data, rainfall_data)
-    return np.asarray(dt.cpu()) * rainfall / (1000 * 15 * 60) # converting mm/15mins flux to m/second / timestep
-
-
-
-
 device = torch.device(config["simulation"]["device"])
 print(f"Running on device {device}")
 clear_output_folder("../results")
@@ -73,33 +62,73 @@ print(f'Final time:  {T.item()} seconds = {T.item() / 3600} hours')
 # assumption of some equilibrium
 u_old = - torch.unsqueeze(torch.unsqueeze(y, 0), 0)
 
-model = Richards_L(xx, yy, dx, dy, theta_malago, kappa_malago, 0, drain_l, drain_r)
-#model = Richards_PC(xx, yy, dx, dy, theta_malago, kappa_malago, 3, drain_l=drain_l, drain_r=drain_r)
+if config["simulation"]["model"] == "L":
+    model = Richards_L(xx, yy, dx, dy, theta_malago, kappa_malago, 0, drain_l, drain_r)
+elif config["simulation"]["model"] == "PC":
+    model = Richards_PC(xx, yy, dx, dy, theta_malago, kappa_malago, 3, drain_l=drain_l, drain_r=drain_r)
 
 t = torch.tensor([0.])
 i = 0
 start = time.time()
 np.savetxt(f"../results/u_0.csv", u_old.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 
-def g(xx, yy, t):
-    return 50 * t * dt * (4 + dx - xx[0])
+if config["simulation"]["surface"] == "rainfall":
 
-with torch.no_grad():
-    while t < T:
-        q = rainfall_flux(t, dt)
-        print(f"t is {t.item()}")
-        #g_old = g(xx, yy, t)    # used for conditional boundary conditions!! With artificial swes.
-        #g_new = g(xx, yy, t + dt) # for L-method, g_old and g_new, for PC method, g
-        u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=50, L=2, zz=yy, q=q) 
-        #u_new = model(u_old, t, dt, boundary_type="Neumann", L=2, nlevel=3, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, zz=yy)  
-        t += dt
-        i += 1
-        # save figure every n_out timesteps
+    rainfall_data = np.genfromtxt(config["IO"]["rainfall_data"], delimiter=',')[1:, 0]
+    time_data = 60 * 15 * np.array(range(len(rainfall_data)))
 
-        if save_fig == True and i % n_out == 0:
-            np.savetxt(f"../results/u_{int(i/ n_out)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+    def rainfall_flux(t, dt):
+        """Interpolated function for rainfall"""
+        rainfall = np.interp(t, time_data, rainfall_data)
+        return np.asarray(dt.cpu()) * rainfall / (1000 * 15 * 60) # converting mm/15mins flux to m/second / timestep
+    
+    with torch.no_grad():
+        while t < T:
+            q = rainfall_flux(t, dt)
+            print(f"t is {t.item()}")
+            if config["simulation"]["model"] == "L":
+                u_new = model(u_old, t, dt, boundary_type="Neumann", ninner=50, L=2, zz=yy, q=q) 
+            elif config["simulation"]["model"] == "PC":
+                u_new = model(u_old, t, dt, boundary_type="Neumann", L=2, nlevel=3, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, zz=yy, q=q)  
+            else:
+                ValueError("Need to choose either 'L' or 'PC' simulation")
+            t += dt
+            i += 1
+            # save figure every n_out timesteps
 
-        u_old = u_new.clone()
+            if save_fig == True and i % n_out == 0:
+                np.savetxt(f"../results/u_{int(i/ n_out)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
 
-    end = time.time()
-    print(f'Time to run simulation: {end-start}s')
+            u_old = u_new.clone()
+
+        end = time.time()
+        print(f'Time to run simulation: {end-start}s')
+
+elif config["simulation"]["surface"] == "ponding":
+    def g(xx, yy, t):
+            return t * dt * (4 + dx - xx[0])
+    with torch.no_grad():
+        while t < T:
+
+            print(f"t is {t.item()}")
+            g_old = g(xx, yy, t)    # used for conditional boundary conditions!! With artificial swes.
+            g_new = g(xx, yy, t + dt) # for L-method, g_old and g_new, for PC method, g
+            if config["simulation"]["model"] == "L":
+                u_new = model(u_old, t, dt, boundary_type="Conditional", g_old=g_old, g_new=g_new, ninner=50, L=2, zz=yy) 
+            elif config["simulation"]["model"] == "PC":
+                u_new = model(u_old, t, dt, boundary_type="Conditional", g_old=g_old, g_new=g_new, L=2, nlevel=3, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, zz=yy) 
+            else:
+                ValueError("Need to choose either 'L' or 'PC' simulation") 
+            t += dt
+            i += 1
+            # save figure every n_out timesteps
+
+            if save_fig == True and i % n_out == 0:
+                np.savetxt(f"../results/u_{int(i/ n_out)}.csv", u_new.cpu().detach().numpy()[0,0,:,:], delimiter=",")
+
+            u_old = u_new.clone()
+
+        end = time.time()
+        print(f'Time to run simulation: {end-start}s')
+else:
+    ValueError("Need to choose either 'rainfall' or 'ponding' surface")

@@ -22,3 +22,5 @@ n_out = 100        # how often to save results (every n_out timesteps)
 
 [simulation]
 device = "cpu"     # which device to run the simulation on. Options: cpu, cuda:0
+surface = "ponding" # which type of boundary conditions to use on the surface of the soil. Options: "ponding" or "rainfall"
+model = "L" # which model to use. Options: "L" or "PC"

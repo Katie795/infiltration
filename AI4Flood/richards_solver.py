@@ -161,7 +161,7 @@ class Richards(nn.Module):
             u_new[0,0,0,:]   = u_new[0,0,1,:] + self.dy * (q / kappa(u_new[:,:,1,:] ) + 1) # inhomogeneous neumann in m 
         else:
             u_new[0,0,0,:]   = u_new[0,0,1,:] 
-            
+
         return u_new
     
 
@@ -182,7 +182,6 @@ class Richards(nn.Module):
 
         saturated   = u_new[0,0, 1, :] >= 0 
         unsaturated = u_new[0,0,1,:] < 0
-
 
         u_new[0,0,:,0]   = u_new[0,0,:,1]          # homogeneous neumann  
         u_new[0,0,:,-1]  = u_new[0,0,:,-2]         # homogeneous neumann
@@ -448,7 +447,7 @@ class Richards_PC(Richards):
     def __init__(self, xx, zz, dx, dy, theta, kappa, n_MG, drain_l, drain_r):
         super().__init__(xx, zz, dx, dy, theta, kappa, n_MG, drain_l, drain_r)
 
-    def forward(self, uold, t, dt, boundary_type, g=None, L=1, q=1, f=0, smoothing_iterations=3, MG_iterations=1, PC_iterations=1, nlevel=1, zz=None):
+    def forward(self, uold, t, dt, boundary_type, g=None, L=1, q=None, f=0, smoothing_iterations=3, MG_iterations=1, PC_iterations=1, nlevel=1, zz=None):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
  
         if boundary_type == "Dirichlet":
@@ -486,9 +485,9 @@ class Richards_PC(Richards):
         for i in range(PC_iterations):
 
             b = L * uj + dt * f_new  + self.theta(uold) - self.theta(uj)
-            upred = self.V_cycle_MG(uj, b, t, dt, boundary_function, smoothing_iterations=smoothing_iterations, MG_iterations=MG_iterations,  nlevel=nlevel, phase="pred", L=L, zz=zz, g_old=g_old, g_list=g_list)
+            upred = self.V_cycle_MG(uj, b, t, dt, boundary_function, smoothing_iterations=smoothing_iterations, MG_iterations=MG_iterations,  nlevel=nlevel, phase="pred", L=L, zz=zz, g_old=g_old, g_list=g_list,q=q)
             b_half = L * upred + 0.5 * dt * (f_new + f_old) + self.theta(uold) - self.theta(upred)
-            ucorr = self.V_cycle_MG(upred, b_half, t, dt, boundary_function, smoothing_iterations=smoothing_iterations, MG_iterations=MG_iterations,  nlevel=nlevel, phase="corr", uold=uold, L=L, zz=zz,  g_old=g_old, g_list=g_list)
+            ucorr = self.V_cycle_MG(upred, b_half, t, dt, boundary_function, smoothing_iterations=smoothing_iterations, MG_iterations=MG_iterations,  nlevel=nlevel, phase="corr", uold=uold, L=L, zz=zz,  g_old=g_old, g_list=g_list,q=q)
            
             assert torch.isinf(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
             assert torch.isnan(torch.sqrt(torch.mean((upred - ucorr)**2))) == False

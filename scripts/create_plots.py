@@ -155,7 +155,7 @@ if args.potential:
                 verticalalignment='top', bbox=props)
         plt.tight_layout()
 
-        plt.savefig(f"../plots/u_{i}.png")
+        plt.savefig(f"../plots/u_{i}_swe.png")
         plt.close()
 
     images = []
@@ -185,7 +185,7 @@ if args.flux:
         ax.set_xlabel("Length (m)")
         ax.set_ylabel("Depth (m)")
         plt.tight_layout()
-        plt.savefig(f"../plots/u_quiver_{i}.png")
+        plt.savefig(f"../plots/u_quiver_{i}_swe.png")
         plt.close()
 
         images = []
