@@ -82,7 +82,7 @@ if config["simulation"]["surface"] == "rainfall":
         rainfall = np.interp(t.cpu(), time_data, rainfall_data)
         return torch.tensor(np.asarray(dt.cpu()) * rainfall / (1000 * 15 * 60)) # converting mm/15mins flux to m/second / timestep
     
-    with torch.no_grad():
+    with torch.inference_mode():
         while t < T:
             q = rainfall_flux(t, dt)
             print(f"t is {t.item()}")
@@ -107,7 +107,7 @@ if config["simulation"]["surface"] == "rainfall":
 elif config["simulation"]["surface"] == "ponding":
     def g(xx, yy, t):
             return t * dt * (4 + dx - xx[0])
-    with torch.no_grad():
+    with torch.inference_mode():
         while t < T:
 
             print(f"t is {t.item()}")

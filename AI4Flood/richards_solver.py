@@ -35,12 +35,19 @@ class Richards(nn.Module):
 
         self.xx_grids = []
         self.zz_grids = []
+        self.diff_filters = []
+        
 
         for i in range(self.n_MG):
 
             self.xx_grids.append(xx)
             self.zz_grids.append(zz)
             xx, zz = self.restrict_grid(xx, zz)
+            self.diff_filters.append(construct_diff_filter(dx, dy))
+            dx = 2 * dx
+            dy = 2 * dy
+
+
 
     def find_closest_index(self, value, dx):
 
@@ -80,7 +87,7 @@ class Richards(nn.Module):
         
         return xx_new, yy_new
 
-    def apply_dirichlet_bcs(self, u, g_t=0, kappa=None, smoothing=False):
+    def apply_dirichlet_bcs(self, u, g_t=0, kappa=None, smoothing=False, q=None):
         """Applies a boundary condition g to a function u.
         
         :args u: original function over nx x ny grid to which the boundary condition is applied
@@ -202,24 +209,42 @@ class Richards(nn.Module):
             u_new[0,0,0,:][saturated] = torch.zeros_like(u_new[0,0,0,:][saturated])
             u_new[0,0,-1, cut1:cut2][id_inactive] = u_new[0,0,-2, cut1:cut2][id_inactive] 
 
-        return u_new    
+        return u_new 
 
-    def A_L(self, uui, Kk, dt, diff, diff_k, uuold=1, L=1, zz=None):
+    def _diffusion_operator(
+        self,
+        uui,
+        Kk,
+        diff,
+        diff_k,
+        zz=None,
+        ):   
+        ui = uui[..., 1:-1, 1:-1]
+        K = Kk[..., 1:-1, 1:-1]
 
-        ui = uui[:, :, 1:-1, 1:-1]
-        K = Kk[:, :, 1:-1, 1:-1]
-
-        if zz == None:
-            div_k_grad_ui = 0.5 * (diff(Kk * (uui))  \
-                        + K * diff(uui) \
-                        - (ui) * diff_k) # updating diffusion term
+        if zz is None:
+            div_k_grad_ui = 0.5 * (
+                diff(Kk * uui)
+                + K * diff(uui)
+                - ui * diff_k
+            )
         else:
-            z = zz[1:-1, 1:-1]
-            div_k_grad_ui = 0.5 * (diff(Kk * (uui + zz))  \
-                        + K * diff(uui + zz) \
-                        - (ui + z) * diff_k) # updating diffusion term
+            uuz = uui + zz
+            uz = uuz[..., 1:-1, 1:-1]
 
-        return L * ui - dt * div_k_grad_ui
+            div_k_grad_ui = 0.5 * (
+                diff(Kk * uuz)
+                + K * diff(uuz)
+                - uz * diff_k
+            )
+        return div_k_grad_ui
+
+    def A_L(self, uui, Kk, dt, diff, diff_k, uuold=None, L=1, zz=None):
+
+        div = self._diffusion_operator(uui, Kk, diff, diff_k, zz)
+        ui = uui[..., 1:-1, 1:-1]
+
+        return L * ui - dt * div
 
     def A_L_corr(self, uui, Kk, dt, diff, diff_k, uuold=1, L=1, zz=None):
         """Here L=1 corresponds to the standard heat equation"""
@@ -228,56 +253,43 @@ class Richards(nn.Module):
         K = Kk[:, :, 1:-1, 1:-1]
         uold = uuold[:, :, 1:-1, 1:-1]
 
-        if zz == None:
+        if zz is None:
             div_k_grad_ui = 0.5 * (diff(Kk * (0.5 *(uui + uuold)))  \
                             + K * diff(0.5 *(uui + uuold)) \
                             - (0.5 *(ui + uold)) * diff_k) # updating diffusion term
         else:
-            z = zz[1:-1, 1:-1]
-            div_k_grad_ui = 0.5 * (diff(Kk * (0.5 *(uui + uuold) + zz))  \
-                            + K * diff(0.5 *(uui + uuold) + zz) \
-                            - (0.5 *(ui + uold) + z) * diff_k) # updating diffusion term
+            uu_uold_zz = 0.5 *(uui + uuold) + zz
+            u_uold_z = uu_uold_zz[1:-1, 1:-1]
+            div_k_grad_ui = 0.5 * (diff(Kk * uu_uold_zz)  \
+                            + K * diff(uu_uold_zz) \
+                            - u_uold_z * diff_k) # updating diffusion term
 
         return L * ui - dt * div_k_grad_ui
 
     def A_L_corr_res(self, uui, Kk, dt, diff, diff_k, L=1, zz=None):
         """Here L=1 corresponds to the standard heat equation"""
 
-        ui = uui[:, :, 1:-1, 1:-1]
-        K = Kk[:, :, 1:-1, 1:-1]
+        div = self._diffusion_operator(uui, Kk, diff, diff_k, zz)
+        ui = uui[..., 1:-1, 1:-1]
 
-        if zz == None:
-            div_k_grad_ui = 0.5 * (diff(Kk * (uui))  \
-                        + K * diff(uui) \
-                        - (ui) * diff_k) # updating diffusion term
-        else:
-            z = zz[1:-1, 1:-1]
-            div_k_grad_ui = 0.5 * (diff(Kk* (uui + zz))  \
-                        + K * diff(uui + zz) \
-                        - (ui + z) * diff_k) # updating diffusion term
-
-        return L * ui - 0.5 * dt * div_k_grad_ui
+        return L * ui - 0.5 * dt * div
 
 
     def V_cycle_MG(self, uj, b, t, dt, boundary_function, smoothing_iterations=3, MG_iterations=1, nlevel=1, phase="pred", uold=0, L=1, zz=None, g_old=None, g_list=None, q=None):
-        dx = self.dx
-        dy = self.dy
+
         ui = uj.clone()
         g_org = g_old
         uuj_org = boundary_function(uj, g_t=g_org, kappa=self.kappa, q=q) # apply dirichlet boundary condition
         diff_diag = self.diag
 
         D_s = []
-        dx_s = []
         Kk_s = []
-        diff_filters = []
         diff_k = []
 
-        dx_s.append(dx)
         Kk = self.kappa(uuj_org)
         Kk_s.append(Kk)
-        diff_filters.append(construct_diff_filter(self.dx, self.dy))
-        diff_k.append(diff_filters[0](Kk))
+
+        diff_k.append(self.diff_filters[0](Kk))
 
         if phase == "pred":
             omega = 1
@@ -303,16 +315,13 @@ class Richards(nn.Module):
   
             uuj = boundary_function(uj, g_t=g_t, kappa=self.kappa, q=q)
             Kk = self.kappa(uuj)
-            dx = 2 * dx
-            dy = 2 * dy
-            diff_filters.append(construct_diff_filter(dx, dy))
+
             diff_diag = 0.25 * diff_diag
             D = L + omega * dt * diff_diag * Kk[:,:,1:-1,1:-1]
 
             D_s.append(D)
-            dx_s.append(dx)
             Kk_s.append(Kk)
-            diff_k.append(diff_filters[i](Kk))
+            diff_k.append(self.diff_filters[i](Kk))
 
         inv_Ds = [1 / D for D in D_s]
         zz_fine = self.zz_grids[0] if zz is not None else None
@@ -321,7 +330,7 @@ class Richards(nn.Module):
             uui = boundary_function(ui, g_t=g_org, kappa=self.kappa, q=q) # apply dirichlet boundary condition
 
             for j in range(smoothing_iterations): # Jacobi relaxation
-                r = b - A_fine(uui, Kk_s[0], dt, diff=diff_filters[0], diff_k=diff_k[0], uuold=uuold, L=L, zz=zz_fine)
+                r = b - A_fine(uui, Kk_s[0], dt, diff=self.diff_filters[0], diff_k=diff_k[0], uuold=uuold, L=L, zz=zz_fine)
                 ui = ui + inv_Ds[0] * 0.5 * r 
                 uui = boundary_function(ui, g_t=g_org, kappa=self.kappa, q=q) # apply dirichlet boundary condition
 
@@ -343,7 +352,7 @@ class Richards(nn.Module):
                     a = r_s[i] * inv_Ds[i]
                 else:   
                     for _ in range(smoothing_iterations):
-                        a += (r_s[i] - A_coarse(aa, Kk_s[i], dt, diff=diff_filters[i], diff_k=diff_k[i], L=L, zz=zz_coarse)) * inv_Ds[i]
+                        a += (r_s[i] - A_coarse(aa, Kk_s[i], dt, diff=self.diff_filters[i], diff_k=diff_k[i], L=L, zz=zz_coarse)) * inv_Ds[i]
                         aa = boundary_function(a, smoothing=True)
             
                 a = self.prol(a) 
@@ -355,7 +364,7 @@ class Richards(nn.Module):
             if torch.norm(uuinew - uui, p=2) <= 1e-6:
                 break
             
-            ui = ui + (b - A_fine(uuinew, Kk_s[0], dt, diff=diff_filters[0], diff_k=diff_k[0], uuold=uuold, L=L, zz=zz_fine)) * inv_Ds[0]
+            ui = ui + (b - A_fine(uuinew, Kk_s[0], dt, diff=self.diff_filters[0], diff_k=diff_k[0], uuold=uuold, L=L, zz=zz_fine)) * inv_Ds[0]
 
         return ui
 
@@ -407,7 +416,7 @@ class Richards_L(Richards):
   
                 uui = boundary_function(ui, g_t=g_new, kappa=self.kappa, q=q) # apply dirichlet boundary condition
 
-                if zz == None:
+                if zz is None:
                     div_k_grad_ui = 0.5 * (self.diff(self.kappa(uuj) * (uui))  \
                                                 + self.kappa(uj) * self.diff(uui) \
                                                 - ui  * self.diff(self.kappa(uuj))) # updating diffusion term
@@ -430,7 +439,7 @@ class Richards_L(Richards):
 
                 ui = uiplus.clone()
 
-            if torch.sqrt(torch.mean((uiplus - uj)**2)) <= 1e-5:
+            if torch.sqrt(torch.sum((uiplus - uj)**2)) <= 1e-5:
                 print(f"Outer iterations converged after {j+1} iterations")
                 break
 
@@ -447,7 +456,7 @@ class Richards_PC(Richards):
     def __init__(self, xx, zz, dx, dy, theta, kappa, n_MG, drain_l, drain_r):
         super().__init__(xx, zz, dx, dy, theta, kappa, n_MG, drain_l, drain_r)
 
-    def forward(self, uold, t, dt, boundary_type, g=None, L=1, q=None, f=0, smoothing_iterations=3, MG_iterations=1, PC_iterations=1, nlevel=1, zz=None):
+    def forward(self, uold, t, dt, boundary_type, g=None, L=1, q=None, f=0, smoothing_iterations=3, MG_iterations=1, PC_iterations=1, nlevel=1, zz=None, debug=False):
         """Here we use a Jacobi iteration with an L method to solve richard's equation."""
  
         if boundary_type == "Dirichlet":
@@ -471,10 +480,11 @@ class Richards_PC(Richards):
             f_old = f(self.xx[1:-1, 1:-1], self.zz[1:-1, 1:-1], torch.tensor(t))
             f_new = f(self.xx[1:-1, 1:-1], self.zz[1:-1, 1:-1], tnew)
 
-        uj = uold.clone()
+        uj = uold
 
         # boundary conditions
         g_old = g(self.xx, self.zz, t) if g is not None else None
+
         if g is not None:
             g_list = []
             for i in range(self.n_MG):
@@ -482,6 +492,7 @@ class Richards_PC(Richards):
         else:
             g_list = None
 
+        # iteration loop
         for i in range(PC_iterations):
 
             b = L * uj + dt * f_new  + self.theta(uold) - self.theta(uj)
@@ -489,17 +500,22 @@ class Richards_PC(Richards):
             b_half = L * upred + 0.5 * dt * (f_new + f_old) + self.theta(uold) - self.theta(upred)
             ucorr = self.V_cycle_MG(upred, b_half, t, dt, boundary_function, smoothing_iterations=smoothing_iterations, MG_iterations=MG_iterations,  nlevel=nlevel, phase="corr", uold=uold, L=L, zz=zz,  g_old=g_old, g_list=g_list,q=q)
            
-            assert torch.isinf(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
-            assert torch.isnan(torch.sqrt(torch.mean((upred - ucorr)**2))) == False
-            
-            if torch.sqrt(torch.mean((uj - ucorr)**2)) <= 1e-5:
+            if debug:
+                err = torch.mean((upred - ucorr).square()).sqrt()
+
+                if not torch.isfinite(err):
+                    raise RuntimeError("NaN or Inf detected")
+
+            iteration_error = torch.mean((ucorr - uj).square()).sqrt()
+                        
+            if iteration_error <= 1e-5:
                 print(f"Iterations converged after {i+1} iterations")
                 break
 
             if i == PC_iterations - 1:
-                print(f"Error is {torch.sqrt(torch.mean((ucorr - uj)**2))}")
+                print(f"Error is {iteration_error}")
                 break
 
-            uj = ucorr.clone()
+            uj = ucorr
 
         return ucorr

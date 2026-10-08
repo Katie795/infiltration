@@ -14,6 +14,7 @@ T = 0.1                                      # total length of time
 nt_array = np.array([1, 2, 5, 10])           # number of timesteps
 dt_array = np.array([0.1, 0.05, 0.02, 0.01]) # timestep array
 nx_array = np.array([7, 15, 31, 63])         # number of elements in each edge of mesh
+#nx_array = np.array([63])
 length = 10                                   # the length of the side of a square domain
 
 PC = True               # predictor corrector method or L method
@@ -26,24 +27,25 @@ device = torch.device("cuda:0")
 torch.set_default_device(device)
 print(f"Running on device {device}")
 
-L2_error = []       # stores the error
-start = time.time() # start timer
+L2_error = []      # stores the error
 
-boundary = BoundaryCondition()
+torch.cuda.synchronize()
+start = time.perf_counter()
 
-with torch.no_grad():
+with torch.inference_mode():
     for nx in nx_array:
         print(f"Evaluating on mesh {nx}")
         L2_error_nx = []
         dx = length / nx
 
-        x, y, xx, yy = generate_coordinate_tensors(nx, nx, length, length, name="horung_messsing")
+        x, y, xx, yy = generate_coordinate_tensors(nx, nx, length, length, name="horung_messsing", device=device)
 
         u_init = u_exact_hm(x,y,0) # initial condition 
-        uold = u_init.clone()
+        uold = u_init
 
         if PC == True:
             model = Richards_PC(xx, yy, dx, dx, theta_hm, kappa_hm, 3, drain_l=0, drain_r=0)
+
         else:
             model = Richards_L(xx, yy, dx, dx, theta_hm, kappa_hm, 0, drain_l=0, drain_r=0)
 
@@ -51,20 +53,21 @@ with torch.no_grad():
         for dt in dt_array:
             t = 0
             nt = nt_array[i]
-            uold = u_init.clone()
+            uold = u_init
 
             print(f"dt is {dt}")
             print(f"nt is {nt}")
 
             for n in range(nt):
                 t = (n + 1) * dt
-                g_old = u_exact_hm(xx,yy,t)
-                g_new = u_exact_hm(xx,yy,t + dt)
+                
                 if PC == True:
                     u_new = model(uold, t, dt, boundary_type="Dirichlet", L=2, g=u_exact_hm, smoothing_iterations=1, MG_iterations=10, PC_iterations=100, nlevel=3)
                 else:
+                    g_old = u_exact_hm(xx,yy,t)
+                    g_new = u_exact_hm(xx,yy,t + dt)
                     u_new = model(uold, t, dt, L=2, ninner=100000, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new)
-                uold = u_new.clone()
+                uold = u_new
 
             error = u_new - u_exact_hm(x, y, t) # spatial error
 
@@ -73,12 +76,14 @@ with torch.no_grad():
 
         L2_error.append(L2_error_nx)
 
-end = time.time() # end timer
-print(f"Time taken to run simulation: {end - start}")
+torch.cuda.synchronize()
+end = time.perf_counter()
+print(f"Time taken to run simulation: {end - start:.3f} s")
+
 
 dx = length / nx_array
 L2_error = np.array(L2_error)
-print(f"L2_error matrix is {L2_error}")
+#print(f"L2_error matrix is {L2_error}")
 for i in range(len(dt_array)):
     print(f"L2 error for dt = {dt_array[i]} is:")
     print(L2_error[:, i])
