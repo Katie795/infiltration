@@ -5,7 +5,6 @@ from AI4Flood.richards_solver import *
 from AI4Flood.generate_csv_files import *
 from AI4Flood.richards_coefficients import u_exact_hm, kappa_hm, theta_hm
 from AI4Flood.misc_functions import *
-from AI4Flood.boundary_conditions import BoundaryCondition
 import time 
 from matplotlib.ticker import ScalarFormatter
 
@@ -66,7 +65,7 @@ with torch.inference_mode():
                 else:
                     g_old = u_exact_hm(xx,yy,t)
                     g_new = u_exact_hm(xx,yy,t + dt)
-                    u_new = model(uold, t, dt, L=2, ninner=100000, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new)
+                    u_new = model(uold, t, dt, L=2, ninner=1000, nouter=1000, boundary_type="Dirichlet", g_old=g_old, g_new=g_new)
                 uold = u_new
 
             error = u_new - u_exact_hm(x, y, t) # spatial error
