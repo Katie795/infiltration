@@ -74,3 +74,7 @@ These options can be changed to modify the solver.
 Note that if you are using the PC method, the nx +1 and ny +1 should be divisible be divisible by 8 in order for the multigrid method to work.
 
 
+The `swe_simulation.py` runs the shallow water equations model.
+
+The `horung_messing_test.py` and `horung_messing_FEM_test.py` runs the Horung-Messing, which is a problem where the analytical solution is known. The `horung_messing_FEM_test.py` is run using [Firedrake](https://www.firedrakeproject.org/) and requires a different virtual environment
+
