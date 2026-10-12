@@ -1,6 +1,6 @@
 # A Neural Physics Model for the Richards Equation for Soil Infiltration
 
-A novel approach for solving the Richards equation using the Neural Physics method. Neural Physics implements a finite element method on neural network architectures, taking advantage of the computational speedup available on GPUs using functionality from PyTorch.
+This repository contains a novel approach for solving the Richards equation using the Neural Physics method. Neural Physics implements a finite element method on neural network architectures, taking advantage of the computational speedup available on GPUs using functionality from PyTorch.
 
 ## Abstract
 A novel approach to discretise and solve the Richards equation based on the finite element method (FEM) is presented. The new approach, called the Neural Physics method, expresses the discretisation as a convolution neural network (CNN) where the weights are predetermined by the integrals of the basis functions in the FEM. The Neural Physics method is physically consistent and represents a discretisation of the governing equation while also gaining several advantages by being written in machine-learning software: the code is platform-agnostic and can run on CPUs, GPUs and the latest AI accelerators, resulting in an increase in computational speed; the gradient is stored by default, thus rendering a completely differentiable method suitable for optimisation problems; and it can be easily integrated with trained neural networks representing sub-grid scale processes, inputs, or boundary conditions. 
@@ -13,16 +13,16 @@ In this code, the Neural Physics method is demonstrated for two different discre
 
 ## Applications in this code:
 - __Idealised problems__: Validation against an infiltration problem with an analytical solution.
-- __Real-World test case__: The code is applied to a 2D cross section of a rain garden wih material properties of the soil derived fom experimental data. There is a choice between ponding or rainfall flux boundary conditions on the surface of the soil. A drain at the bottom of the rain garden is represented by seepage boundary conditions.
+- __Real-world test case__: The code is applied to a 2D cross section of a rain garden wih material properties of the soil derived fom experimental data. There is a choice between ponding or rainfall flux boundary conditions on the surface of the soil. A drain at the bottom of the rain garden is represented by seepage boundary conditions.
 
 
 ## Installation:
 ### Prerequisites
-If you use Windows you might need to set up a Windows Subsystem for Linux (WSL)
+If you use Windows you might need to set up a Windows Subsystem for Linux (WSL).
 To run this package, it will be helpful to have
 - __Python 3.10__: This will be installed as a part of the virtual environment. Python 3.10 is used for compatibility with the required packages and libraries.
 - __Conda (Preferred)__: It is recommended to use use Conda to simplify the management of your Python environment and dependencies. The installation instructions shown here are for the conda environment.
-- __GPU with CUDA support (Optional)__: This code gives the most speedup when it is run on a GPU, but it is also possible to run it on a CPU instead. If using a GPU, please make sure that it supports CUDA and the CUDA drivers are correctly installed and configured.
+- __GPU with CUDA support (Optional)__: This code is most effective when run on a GPU, but it is perfectly possible to run it on a CPU as well. If using a GPU, please make sure that it supports CUDA and the CUDA drivers are correctly installed and configured.
 
 
 First, use the terminal to create a folder on your computer then navigate to the folder:
