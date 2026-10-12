@@ -11,7 +11,7 @@ import numpy as np
 import time 
 import torch
 from AI4Flood.swe_solver import AI4SWE
-import tomllib
+import tomli as tomllib
 import argparse
 import AI4Flood.infiltration as infiltration 
 

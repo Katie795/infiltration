@@ -12,8 +12,8 @@ ny = 63            # number of elements in the y-direction
 
 [time]
 dt = 0.5          # timestep (s)
-T = 3600            # total length of time (s)
-nt = 7200        # total number of time-steps
+T = 3600          # total length of time (s)
+nt = 7200         # total number of time-steps
 
 [IO]
 rainfall_data =    "../data/Clifton_rain_modifed_for_rainfall_event.csv" # csv file containing rainfall data

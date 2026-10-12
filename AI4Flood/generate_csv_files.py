@@ -255,7 +255,9 @@ def generate_coordinate_tensors(nx, ny, length, depth, name, device="cpu"):
 
 if __name__ == "__main__":
     # Script to find and include the rain garden
-    generate_coords()
+    nx = 294
+    ny = 302
+    generate_coords(nx, ny)
     find_xyz_rain_garden("../data/x_coords.csv", "../data/y_coords.csv","../data/malago_height.csv", "../data/rain_garden.csv")
     find_indices_rain_garden("../data/rain_garden.csv", "../data/rain_garden_indices.csv")
     add_rain_garden_to_domain("../data/malago_height.csv", "../data/rain_garden_indices.csv", "../data/full_domain.csv")

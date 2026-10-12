@@ -13,7 +13,7 @@ In this code, the Neural Physics method is demonstrated for two different discre
 
 ## Applications in this code:
 - __Idealised problems__: Validation against an infiltration problem with an analytical solution.
-- __Real-world test case__: The code is applied to a 2D cross section of a rain garden wih material properties of the soil derived fom experimental data. There is a choice between ponding or rainfall flux boundary conditions on the surface of the soil. A drain at the bottom of the rain garden is represented by seepage boundary conditions.
+- __Real-world test case__: The code is applied to a 2D cross section of a rain garden with material properties of the soil derived fom experimental data. There is a choice between ponding or rainfall flux boundary conditions on the surface of the soil. A drain at the bottom of the rain garden is represented by seepage boundary conditions.
 
 
 ## Installation:
@@ -36,9 +36,9 @@ Clone this repository into your folder:
 ```
 git clone https://github.com/Katie795/infiltration.git
 ```
-You will need a GitHub account and need to be added as a collaborator on the project. If you are not yet, please email me at km2560@bath.ac.uk. If you get an error `Password authentication is not supported for Git operaions`, make sure your password is a Personal access token that can be found in your GitHub account: Click your avatar in the top-right corner → Settings → Developer settings → Personal access tokens → Tokens (classic).
+You will need a GitHub account and need to be added as a collaborator on the project. If you are not yet, please email me at km2560@bath.ac.uk. If you get an error `Password authentication is not supported for Git operations`, make sure your password is a Personal access token that can be found in your GitHub account: Click your avatar in the top-right corner → Settings → Developer settings → Personal access tokens → Tokens (classic).
 
-To set up the requirement and install the required pacakges, navigate into the folder then run:
+To set up the requirement and install the required packages, run the following commands:
 ```
 cd infiltration
 conda env create -f environment.yml
@@ -52,17 +52,16 @@ If that doesn't work, just run
 conda create --name flooding-env python=3.10
 conda activate flooding-env
 python -m pip install --editable .
-mkdir results
 ```
-When you run the code, if you get a `ModuleNotFoundError: No module named 'MODULE', run
+When you run the code, if you get a `ModuleNotFoundError: No module named 'MODULE'`, run
 
-`
+```
 conda install MODULE
-`
+```
 or, if that doesn't work,
-`
+```
 pip install MODULE
-`
+```
 You might have to install multiple packages before the code runs.
 
 ## Using the code
@@ -75,11 +74,16 @@ then to run the code using the default settings use:
 ```
 python infiltration_simulation.py
 ``` 
-This will produce an output of csv files for u in the `results/` folder. To visualise the results of the simulation, run
+This will produce an output of csv files for u in the `results/` folder. If you get a `results folder not found` error run
+```
+mkdir ../results
+```
+
+To visualise the results of the simulation, run
 ```
 python create_plots.py --potential --nfig=70
 ```
-where 70 is a number corresponding to the number of figures you want to create. This will produce an animation of the CSV files you produced.
+where 70 is a number corresponding to the number of frames in the animation you want to create. This will produce an animation of the CSV files you produced.
 
 Detailed instructions on how to modify the code can be found in the `docs` directory.
 
