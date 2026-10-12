@@ -74,7 +74,7 @@ then to run the code using the default settings use:
 ```
 python infiltration_simulation.py
 ``` 
-This will produce an output of csv files for u in the `results/` folder. If you get a `results folder not found` error run
+This will produce an output of csv files for the capillary potential u in the `results/` folder. If you get a `results folder not found` error run
 ```
 mkdir ../results
 ```
