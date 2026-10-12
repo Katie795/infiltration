@@ -81,9 +81,9 @@ mkdir ../results
 
 To visualise the results of the simulation, run
 ```
-python create_plots.py --potential --nfig=70
+python create_plots.py --potential --nfig=72
 ```
-where 70 is a number corresponding to the number of frames in the animation you want to create. This will produce an animation of the CSV files you produced.
+where 72 is a number corresponding to the number of frames in the animation you want to create. This will produce an animation of the CSV files you produced.
 
 Detailed instructions on how to modify the code can be found in the `docs` directory.
 
