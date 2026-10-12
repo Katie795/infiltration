@@ -4,7 +4,7 @@ A novel approach for solving the Richards equation using the Neural Physics meth
 
 ## Abstract
 A novel approach to discretise and solve the Richards equation based on the finite element method (FEM) is presented. The new approach, called the Neural Physics method, expresses the discretisation as a convolution neural network (CNN) where the weights are predetermined by the integrals of the basis functions in the FEM. The Neural Physics method is physically consistent and represents a discretisation of the governing equation while also gaining several advantages by being written in machine-learning software: the code is platform-agnostic and can run on CPUs, GPUs and the latest AI accelerators, resulting in an increase in computational speed; the gradient is stored by default, thus rendering a completely differentiable method suitable for optimisation problems; and it can be easily integrated with trained neural networks representing sub-grid scale processes, inputs, or boundary conditions. 
-In this paper, the Neural Physics method is demonstrated for two different discretisations for the Richards equation, including a multigrid method that is realised through a U-Net architecture. The accuracy and speed of these methods is tested on a problem with a known analytical solution and compared to a standard FEM, and obtains favourable results. Finally, the Neural Physics method is applied to a real-world test case with integrated experimental data and simulates the infiltration of water through a rain garden.
+In this code, the Neural Physics method is demonstrated for two different discretisations for the Richards equation, including a multigrid method that is realised through a U-Net architecture. The accuracy and speed of these methods is tested on a problem with a known analytical solution and compared to a standard FEM, and obtains favourable results. Finally, the Neural Physics method is applied to a real-world test case with integrated experimental data and simulates the infiltration of water through a rain garden.
 
 ## Key Features:
 - __Platform-Agnostic Code__: Runs seamlessly on CPUs, GPUs and AI optimised processors.
@@ -12,8 +12,9 @@ In this paper, the Neural Physics method is demonstrated for two different discr
 - __Accellerated development__: Leverages machine learning libraries to speed up model development.
 
 ## Applications in this code:
-- __Idealised problems__: Validation against an infiltration problem with analytical solution.
--__Real-World test case__: Applied to a 2D cross section of a rain garden wih material properties of the soil derived fom experimental data. A choice between ponding or flux boundary conditions on the surface of the soil.
+- __Idealised problems__: Validation against an infiltration problem with an analytical solution.
+- __Real-World test case__: The code is applied to a 2D cross section of a rain garden wih material properties of the soil derived fom experimental data. There is a choice between ponding or rainfall flux boundary conditions on the surface of the soil. A drain at the bottom of the rain garden is represented by seepage boundary conditions.
+
 
 ## Installation:
 ### Prerequisites
