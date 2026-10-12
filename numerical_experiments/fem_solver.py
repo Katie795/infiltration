@@ -48,11 +48,10 @@ def Richards_FEM(dt, nt, mesh, V, L=2, ninner=10, nouter=10):
             solver_parameters={'ksp_type': 'gmres',
                                                            'pc_type': 'jacobi',
                                                            'ksp_max_it': ninner,
-                                                           'ksp_rtol': 1e-6,
-                                                           'ksp_monitor': None}
+                                                           'ksp_rtol': 1e-6}
             solve(A == b, u_new, bcs=[bc], solver_parameters=solver_parameters) 
 
-            print(errornorm(u_new, uj))
+            #print(errornorm(u_new, uj))
 
             if errornorm(u_new, uj) <= 1e-5:
                 print(f"Outer iterations converged after {j+1} iterations")

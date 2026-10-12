@@ -232,7 +232,7 @@ def find_indices_rain_garden(input_file, output_file):
     df["y_index"] = pd.to_numeric(df["y_index"], downcast="integer")
     df.to_csv(output_file, header=True, index=False)
 
-def generate_coordinate_tensors(nx, ny, length, depth, name):
+def generate_coordinate_tensors(nx, ny, length, depth, name, device="cpu"):
     """Generate uniform coordinate tensors x, y, x_padded, y_padded 
     for a rectangular domain by generating the required csv files
     
@@ -245,10 +245,10 @@ def generate_coordinate_tensors(nx, ny, length, depth, name):
 
     generate_rectangular_coords(nx, ny, name=f"{name}_", x_length=length, y_length=depth)
     generate_rectangular_padded_coords(nx, ny, name=f"{name}_padded_", x_length=length, y_length=depth)
-    x = torch.tensor(np.genfromtxt(f"../data/{name}_x_coords.csv", delimiter=','), dtype=torch.float32)
-    y = torch.tensor(np.genfromtxt(f"../data/{name}_y_coords.csv", delimiter=','), dtype=torch.float32)
-    x_padded = torch.tensor(np.genfromtxt(f"../data/{name}_padded_x_coords.csv", delimiter=','), dtype=torch.float32)
-    y_padded = torch.tensor(np.genfromtxt(f"../data/{name}_padded_y_coords.csv", delimiter=','), dtype=torch.float32)
+    x = torch.tensor(np.genfromtxt(f"../data/{name}_x_coords.csv", delimiter=','), dtype=torch.float32, device=device)
+    y = torch.tensor(np.genfromtxt(f"../data/{name}_y_coords.csv", delimiter=','), dtype=torch.float32, device=device)
+    x_padded = torch.tensor(np.genfromtxt(f"../data/{name}_padded_x_coords.csv", delimiter=','), dtype=torch.float32, device=device)
+    y_padded = torch.tensor(np.genfromtxt(f"../data/{name}_padded_y_coords.csv", delimiter=','), dtype=torch.float32, device=device)
 
     return x,y, x_padded, y_padded
 
