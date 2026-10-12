@@ -1,4 +1,4 @@
-results/
+results/*
 AI4Flood/__pycache__
 __pycache__
 .vscode

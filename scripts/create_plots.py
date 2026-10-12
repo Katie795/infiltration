@@ -161,10 +161,10 @@ if args.potential:
     images = []
     for i in range(0, int(args.nfig) + 1):
         images.append(imageio.imread(f"../plots/u_{i}.png"))
-        imageio.mimsave("../plots/malago_infiltration_4.mp4", images)
+        imageio.mimsave("../plots/malago_infiltration.mp4", images)
 
-    #for i in range(0, int(args.nfig) + 1):
-    #    os.remove(f"../plots/u_{i}.png")
+    for i in range(0, int(args.nfig) + 1):
+        os.remove(f"../plots/u_{i}.png")
 
 if args.flux:
     X = np.genfromtxt("../data/infiltration_x_coords.csv", delimiter=',')[1:, 1:]

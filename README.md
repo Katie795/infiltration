@@ -36,18 +36,38 @@ Clone this repository into your folder:
 ```
 git clone https://github.com/Katie795/infiltration.git
 ```
-To set up the requirement and install the required pacakges, run:
+You will need a GitHub account and need to be added as a collaborator on the project. If you are not yet, please email me at km2560@bath.ac.uk. If you get an error `Password authentication is not supported for Git operaions`, make sure your password is a Personal access token that can be found in your GitHub account: Click your avatar in the top-right corner → Settings → Developer settings → Personal access tokens → Tokens (classic).
+
+To set up the requirement and install the required pacakges, navigate into the folder then run:
 ```
+cd infiltration
 conda env create -f environment.yml
 ```
 Alternatively, you can install the required packages by running
 ```
 pip install -r requirements.txt
 ```
+If that doesn't work, just run
+```
+conda create --name flooding-env python=3.10
+conda activate flooding-env
+python -m pip install --editable .
+mkdir results
+```
+When you run the code, if you get a `ModuleNotFoundError: No module named 'MODULE', run
+
+`
+conda install MODULE
+`
+or, if that doesn't work,
+`
+pip install MODULE
+`
+You might have to install multiple packages before the code runs.
 
 ## Using the code
 
-To run the code using the default settings navigate to the scripts folder by using:
+To run the code using the default settings navigate to the `scripts` folder by using:
 ``` 
 cd scripts
 ```
@@ -57,14 +77,14 @@ python infiltration_simulation.py
 ``` 
 This will produce an output of csv files for u in the `results/` folder. To visualise the results of the simulation, run
 ```
-python create_plots.py --potential --nfig=NFIG
+python create_plots.py --potential --nfig=70
 ```
-where NFIG is a number corresponding to the number of figures you want to create. This will produce an animation of the CSV files you produced.
+where 70 is a number corresponding to the number of figures you want to create. This will produce an animation of the CSV files you produced.
 
-Detailed instructions on how to modify the code can be found in the docs directory.
+Detailed instructions on how to modify the code can be found in the `docs` directory.
 
 ## License 
-This project is licensed under the MIT Lisence. See the LICENSE file for more details.
+This project is licensed under the MIT Lisence. See the `LICENSE` file for more details.
 
 ## Citation
 If you use this project or the related papaer in your research, please cite it as follows:
@@ -85,5 +105,5 @@ If you use this project or the related papaer in your research, please cite it a
 
 ## Contact and related papers
 
-For more information please contact me at km2560@bath.ac.uk
+For more information please contact me at `km2560@bath.ac.uk`.
 
