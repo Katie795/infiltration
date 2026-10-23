@@ -22,14 +22,14 @@ nlevels = [3, 4, 5, 6]  # levels of refinement
 
 ### Set up gpu specs ###
 is_gpu = torch.cuda.is_available() # Check if GPU is available 
-device = torch.device("cuda:0")
+device = torch.device("cpu")
 torch.set_default_device(device)
 print(f"Running on device {device}")
 
 L2_error = []      # stores the error
-
-torch.cuda.synchronize()
-start = time.perf_counter()
+#
+#torch.cuda.synchronize()
+#start = time.perf_counter()
 
 with torch.inference_mode():
     for nx in nx_array:
@@ -75,9 +75,9 @@ with torch.inference_mode():
 
         L2_error.append(L2_error_nx)
 
-torch.cuda.synchronize()
-end = time.perf_counter()
-print(f"Time taken to run simulation: {end - start:.3f} s")
+#torch.cuda.synchronize()
+#end = time.perf_counter()
+#print(f"Time taken to run simulation: {end - start:.3f} s")
 
 
 dx = length / nx_array
@@ -95,11 +95,12 @@ for i in range(len(dt_array)):
 ax1.plot(dx, 0.02 * dx ** 2, color="black", linestyle="dotted", label=r"$y= C(\Delta x)^2$")
 ax1.set_xscale("log")
 ax1.set_yscale("log")
+ax1.tick_params(labelsize="x-large")
 ax1.set_xticks([0.2, 0.5, 1.])
 ax1.get_xaxis().set_major_formatter(ScalarFormatter())
-ax1.set_xlabel(r"$\Delta x$", fontsize=12)
-ax1.set_ylabel(r"$L^2$ error", fontsize=12)
-ax1.legend(fontsize=12)
+ax1.set_xlabel(r"$\Delta x$", fontsize=18)
+ax1.set_ylabel(r"$L^2$ error", fontsize=18)
+ax1.legend(fontsize=16)
 plt.tight_layout()
 if PC == True:
     plt.savefig(f"../plots/hm_pc.png")
